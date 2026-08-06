@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.UsuarioRepository;
@@ -16,20 +17,40 @@ import com.barberapp.barberapp.repository.UsuarioRepository;
 public class UsuarioService {
 
 private final UsuarioRepository usuarioRepository;
+private final PasswordEncoder passwordEncoder;
 
-public UsuarioService(UsuarioRepository usuarioRepository) {
+public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
     this.usuarioRepository = usuarioRepository;
+    this.passwordEncoder = passwordEncoder;
 }
 /**
  * Guarda un nuevo usuario en la base de datos.
  */
 public Usuario guardarUsuario(Usuario usuario) {
 
-    usuario.setFechaRegistro(LocalDate.now());
+    if (usuario == null || usuario.getNombre() == null || usuario.getNombre().trim().isEmpty()
+            || usuario.getEmail() == null || usuario.getEmail().trim().isEmpty()
+            || usuario.getTelefono() == null || !usuario.getTelefono().matches("\\d{10}")
+            || usuario.getPassword() == null || usuario.getPassword().length() < 6) {
+        throw new RuntimeException("Datos de registro inválidos. La contraseña debe tener al menos 6 caracteres.");
+    }
 
-    System.out.println("Fecha antes de guardar: " + usuario.getFechaRegistro());
+    usuario.setEmail(usuario.getEmail().trim().toLowerCase());
+    usuario.setNombre(usuario.getNombre().trim());
+    usuario.setTelefono(usuario.getTelefono().trim());
+    usuario.setRol("cliente");
+
+    if (usuarioRepository.existsByEmailIgnoreCase(usuario.getEmail())) {
+
+        throw new CorreoYaRegistradoException();
+
+    }
+
+    usuario.setFechaRegistro(LocalDate.now());
+    usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
 
     return usuarioRepository.save(usuario);
+
 }
 /**
  * Obtiene la lista de todos los usuarios registrados.
@@ -51,7 +72,9 @@ public Usuario actualizarUsuario(Integer id, Usuario usuarioActualizado) {
         if (usuarioExistente != null) {
             usuarioExistente.setNombre(usuarioActualizado.getNombre());
             usuarioExistente.setEmail(usuarioActualizado.getEmail());
-            usuarioExistente.setPassword(usuarioActualizado.getPassword());
+            if (usuarioActualizado.getPassword() != null && !usuarioActualizado.getPassword().isBlank()) {
+                usuarioExistente.setPassword(passwordEncoder.encode(usuarioActualizado.getPassword()));
+            }
             usuarioExistente.setRol(usuarioActualizado.getRol());
             usuarioExistente.setTelefono(usuarioActualizado.getTelefono());
             return usuarioRepository.save(usuarioExistente);
@@ -69,10 +92,17 @@ public void eliminarUsuario(Integer id) {
  */
 public Usuario iniciarSesion(Usuario usuario) {
 
-    return usuarioRepository.findByEmailAndPassword(
-            usuario.getEmail(),
-            usuario.getPassword()
-    );
+    if (usuario == null || usuario.getEmail() == null || usuario.getPassword() == null) {
+        return null;
+    }
+
+    Usuario usuarioEncontrado = usuarioRepository.findByEmailIgnoreCase(usuario.getEmail().trim());
+
+    if (usuarioEncontrado == null || !passwordEncoder.matches(usuario.getPassword(), usuarioEncontrado.getPassword())) {
+        return null;
+    }
+
+    return usuarioEncontrado;
 
 }
 }

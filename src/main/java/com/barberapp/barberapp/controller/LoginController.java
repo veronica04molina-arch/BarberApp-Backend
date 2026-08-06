@@ -1,5 +1,7 @@
 package com.barberapp.barberapp.controller;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,10 +29,19 @@ public class LoginController {
  * Valida las credenciales de acceso del usuario.
  */
     @PostMapping
-    public Usuario iniciarSesion(@RequestBody Usuario usuario) {
+    public ResponseEntity<?> iniciarSesion(@RequestBody Usuario usuario) {
 
-        return usuarioService.iniciarSesion(usuario);
+    Usuario usuarioEncontrado = usuarioService.iniciarSesion(usuario);
+
+    if (usuarioEncontrado == null) {
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body("Correo o contraseña incorrectos.");
 
     }
+
+    return ResponseEntity.ok(usuarioEncontrado);
+
+}
 
 }

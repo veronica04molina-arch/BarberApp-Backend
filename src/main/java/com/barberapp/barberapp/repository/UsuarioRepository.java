@@ -14,10 +14,7 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
     /**
  * Verifica si existe un usuario con el correo indicado.
  */
-boolean existsByEmail(String email);
+boolean existsByEmailIgnoreCase(String email);
 
-/**
- * Busca un usuario por correo y contraseña para iniciar sesión.
- */
-Usuario findByEmailAndPassword(String email, String password);
+Usuario findByEmailIgnoreCase(String email);
 }

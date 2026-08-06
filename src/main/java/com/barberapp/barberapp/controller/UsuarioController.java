@@ -2,6 +2,7 @@ package com.barberapp.barberapp.controller;
 
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.barberapp.barberapp.model.Usuario;
+import com.barberapp.barberapp.service.CorreoYaRegistradoException;
 import com.barberapp.barberapp.service.UsuarioService;
 
 @CrossOrigin(origins = "http://127.0.0.1:5500")
@@ -32,9 +34,29 @@ public class UsuarioController {
  * Registra un nuevo usuario.
  */
     @PostMapping
-    public Usuario registrarUsuario(@RequestBody Usuario usuario) {
-        return usuarioService.guardarUsuario(usuario);
+public ResponseEntity<?> registrarUsuario(@RequestBody Usuario usuario) {
+
+    try {
+
+        return ResponseEntity.ok(
+                usuarioService.guardarUsuario(usuario)
+        );
+
+    } catch (CorreoYaRegistradoException e) {
+
+        return ResponseEntity
+                .status(409)
+                .body(e.getMessage());
+
+    } catch (RuntimeException e) {
+
+        return ResponseEntity
+                .badRequest()
+                .body(e.getMessage());
+
     }
+
+}
     /**
  * Obtiene la lista de usuarios registrados.
  */
