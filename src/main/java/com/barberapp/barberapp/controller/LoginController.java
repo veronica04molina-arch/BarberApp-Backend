@@ -11,7 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.service.UsuarioService;
 
-@CrossOrigin(origins = "http://127.0.0.1:5500")
+@CrossOrigin(origins = "http://localhost:4200")
+//@CrossOrigin(origins = "http://127.0.0.1:5500")
 /**
  * Controlador encargado del proceso de autenticación
  * de los usuarios del sistema.
