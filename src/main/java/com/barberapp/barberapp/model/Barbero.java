@@ -18,7 +18,7 @@ public class Barbero {
     private Integer id;
 
     @OneToOne
-    @JoinColumn(name = "idusuario")
+    @JoinColumn(name = "idusuario", nullable = false, unique = true)
     private Usuario usuario;
 
     @Column(nullable = false, length = 150)

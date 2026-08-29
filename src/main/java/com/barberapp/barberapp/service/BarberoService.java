@@ -7,14 +7,17 @@ import org.springframework.stereotype.Service;
 
 import com.barberapp.barberapp.model.Barbero;
 import com.barberapp.barberapp.repository.BarberoRepository;
+import com.barberapp.barberapp.repository.UsuarioRepository;
 
 @Service
 public class BarberoService {
 
     private final BarberoRepository barberoRepository;
+    private final UsuarioRepository usuarioRepository;
 
-    public BarberoService(BarberoRepository barberoRepository) {
+    public BarberoService(BarberoRepository barberoRepository, UsuarioRepository usuarioRepository) {
         this.barberoRepository = barberoRepository;
+        this.usuarioRepository = usuarioRepository;
     }
 
     // Obtener todos los barberos
@@ -28,32 +31,79 @@ public class BarberoService {
     }
 
     // Guardar un barbero
-    public Barbero guardarBarbero(Barbero barbero) {
-        return barberoRepository.save(barbero);
+public Barbero guardarBarbero(Barbero barbero) {
+
+    if (barbero == null || barbero.getUsuario() == null
+            || barbero.getUsuario().getId() == null) {
+
+        throw new RuntimeException("Debe seleccionar un usuario.");
     }
+
+    Integer idUsuario = barbero.getUsuario().getId();
+
+    Optional<com.barberapp.barberapp.model.Usuario> usuarioOptional =
+            usuarioRepository.findById(idUsuario);
+
+    if (usuarioOptional.isEmpty()) {
+        throw new RuntimeException("El usuario no existe.");
+    }
+
+    com.barberapp.barberapp.model.Usuario usuario = usuarioOptional.get();
+
+    if (!"barbero".equalsIgnoreCase(usuario.getRol())) {
+        throw new RuntimeException(
+                "El usuario seleccionado no tiene el rol de barbero."
+        );
+    }
+
+    if (barberoRepository.existsByUsuarioId(idUsuario)) {
+        throw new RuntimeException(
+                "Este usuario ya está registrado como barbero."
+        );
+    }
+
+    barbero.setUsuario(usuario);
+
+    if (barbero.getEstado() == null || barbero.getEstado().isBlank()) {
+        barbero.setEstado("activo");
+    }
+
+    return barberoRepository.save(barbero);
+}
 
     // Actualizar un barbero
     public Barbero actualizarBarbero(Integer id, Barbero datosBarbero) {
 
-        Optional<Barbero> barberoExistente = barberoRepository.findById(id);
+    Optional<Barbero> barberoExistente = barberoRepository.findById(id);
 
-        if (barberoExistente.isPresent()) {
+    if (barberoExistente.isPresent()) {
 
-            Barbero barbero = barberoExistente.get();
+        Barbero barbero = barberoExistente.get();
 
-            barbero.setUsuario(datosBarbero.getUsuario());
-            barbero.setEspecialidad(datosBarbero.getEspecialidad());
-            barbero.setExperiencia(datosBarbero.getExperiencia());
-            barbero.setEstado(datosBarbero.getEstado());
+        barbero.setEspecialidad(datosBarbero.getEspecialidad());
+        barbero.setExperiencia(datosBarbero.getExperiencia());
 
-            return barberoRepository.save(barbero);
-        }
-
-        return null;
+        return barberoRepository.save(barbero);
     }
 
-    // Eliminar un barbero
-    public void eliminarBarbero(Integer id) {
-        barberoRepository.deleteById(id);
+    return null;
+}
+
+    // Desactivar un barbero
+    public boolean desactivarBarbero(Integer id) {
+
+    Optional<Barbero> barberoExistente =
+            barberoRepository.findById(id);
+
+    if (barberoExistente.isEmpty()) {
+        return false;
     }
+
+    Barbero barbero = barberoExistente.get();
+    barbero.setEstado("inactivo");
+
+    barberoRepository.save(barbero);
+
+    return true;
+}
 }

@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,11 +46,21 @@ public class BarberoController {
 
     // Registrar un barbero
     @PostMapping
-    public ResponseEntity<Barbero> guardarBarbero(@RequestBody Barbero barbero) {
+public ResponseEntity<?> guardarBarbero(@RequestBody Barbero barbero) {
+
+    try {
+
         Barbero nuevoBarbero = barberoService.guardarBarbero(barbero);
 
         return ResponseEntity.ok(nuevoBarbero);
+
+    } catch (RuntimeException e) {
+
+        return ResponseEntity
+                .badRequest()
+                .body(e.getMessage());
     }
+}
 
     // Actualizar un barbero
     @PutMapping("/{id}")
@@ -69,17 +78,16 @@ public class BarberoController {
         return ResponseEntity.notFound().build();
     }
 
-    // Eliminar un barbero
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminarBarbero(@PathVariable Integer id) {
+    // Desactivar un barbero
+    @PutMapping("/{id}/desactivar")
+public ResponseEntity<Void> desactivarBarbero(@PathVariable Integer id) {
 
-        Optional<Barbero> barbero = barberoService.buscarPorId(id);
+    boolean desactivado = barberoService.desactivarBarbero(id);
 
-        if (barbero.isPresent()) {
-            barberoService.eliminarBarbero(id);
-            return ResponseEntity.noContent().build();
-        }
-
-        return ResponseEntity.notFound().build();
+    if (desactivado) {
+        return ResponseEntity.noContent().build();
     }
+
+    return ResponseEntity.notFound().build();
+}
 }
