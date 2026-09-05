@@ -19,7 +19,8 @@ import com.barberapp.barberapp.service.UsuarioService;
 
 @CrossOrigin(origins = "http://127.0.0.1:5500")
 /**
- * Controlador encargado de gestionar las peticiones HTTP relacionadas con los usuarios.
+ * Controlador encargado de gestionar las peticiones HTTP relacionadas con los
+ * usuarios.
  */
 @RestController
 @RequestMapping("/usuarios")
@@ -30,64 +31,64 @@ public class UsuarioController {
     public UsuarioController(UsuarioService usuarioService) {
         this.usuarioService = usuarioService;
     }
+
     /**
- * Registra un nuevo usuario.
- */
+     * Registra un nuevo usuario.
+     */
     @PostMapping
-public ResponseEntity<?> registrarUsuario(@RequestBody Usuario usuario) {
+    public ResponseEntity<?> registrarUsuario(@RequestBody Usuario usuario) {
 
-    try {
+        try {
 
-        return ResponseEntity.ok(
-                usuarioService.guardarUsuario(usuario)
-        );
+            return ResponseEntity.ok(
+                    usuarioService.guardarUsuario(usuario));
 
-    } catch (CorreoYaRegistradoException e) {
+        } catch (CorreoYaRegistradoException e) {
 
-        return ResponseEntity
-                .status(409)
-                .body(e.getMessage());
+            return ResponseEntity
+                    .status(409)
+                    .body(e.getMessage());
 
-    } catch (RuntimeException e) {
+        } catch (RuntimeException e) {
 
-        return ResponseEntity
-                .badRequest()
-                .body(e.getMessage());
+            return ResponseEntity
+                    .badRequest()
+                    .body(e.getMessage());
+
+        }
 
     }
 
-}
     /**
- * Obtiene la lista de usuarios registrados.
- */
+     * Obtiene la lista de usuarios registrados.
+     */
     @GetMapping
     public List<Usuario> listarUsuarios() {
         return usuarioService.listarUsuarios();
     }
+
     /**
- * Busca un usuario por su identificador.
- */
+     * Busca un usuario por su identificador.
+     */
     @GetMapping("/{id}")
     public Usuario buscarUsuarioPorId(@PathVariable Integer id) {
         return usuarioService.buscarUsuarioPorId(id);
     }
+
     /**
- * Actualiza la información de un usuario.
- */
+     * Actualiza la información de un usuario.
+     */
     @PutMapping("/{id}")
     public Usuario actualizarUsuario(@PathVariable Integer id,
-                                @RequestBody Usuario usuario) {
+            @RequestBody Usuario usuario) {
         return usuarioService.actualizarUsuario(id, usuario);
     }
+
     /**
- * Elimina un usuario por su identificador.
- */
+     * Elimina un usuario por su identificador.
+     */
     @DeleteMapping("/{id}")
     public void eliminarUsuario(@PathVariable Integer id) {
         usuarioService.eliminarUsuario(id);
-    }
-    @PostMapping("/login")
-    public Usuario iniciarSesion(@RequestBody Usuario usuario) {
-        return usuarioService.iniciarSesion(usuario);
     }
 }

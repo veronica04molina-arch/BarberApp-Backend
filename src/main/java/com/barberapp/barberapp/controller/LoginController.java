@@ -12,7 +12,7 @@ import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.service.UsuarioService;
 
 @CrossOrigin(origins = "http://localhost:4200")
-//@CrossOrigin(origins = "http://127.0.0.1:5500")
+// @CrossOrigin(origins = "http://127.0.0.1:5500")
 /**
  * Controlador encargado del proceso de autenticación
  * de los usuarios del sistema.
@@ -26,23 +26,24 @@ public class LoginController {
     public LoginController(UsuarioService usuarioService) {
         this.usuarioService = usuarioService;
     }
+
     /**
- * Valida las credenciales de acceso del usuario.
- */
+     * Valida las credenciales de acceso del usuario.
+     */
     @PostMapping
     public ResponseEntity<?> iniciarSesion(@RequestBody Usuario usuario) {
 
-    Usuario usuarioEncontrado = usuarioService.iniciarSesion(usuario);
+        Usuario usuarioEncontrado = usuarioService.iniciarSesion(usuario);
 
-    if (usuarioEncontrado == null) {
+        if (usuarioEncontrado == null) {
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body("Correo o contraseña incorrectos.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Correo o contraseña incorrectos.");
+
+        }
+
+        return ResponseEntity.ok(usuarioEncontrado);
 
     }
-
-    return ResponseEntity.ok(usuarioEncontrado);
-
-}
 
 }

@@ -2,7 +2,11 @@ package com.barberapp.barberapp.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.barberapp.barberapp.auth.GoogleAuthService;
 import com.barberapp.barberapp.auth.GoogleRegisterRequest;
@@ -26,8 +30,7 @@ public class AuthController {
 
         try {
 
-            GoogleUser googleUser =
-                    googleAuthService.verificarToken(request.getToken());
+            GoogleUser googleUser = googleAuthService.verificarToken(request.getToken());
 
             if (googleUser == null) {
 

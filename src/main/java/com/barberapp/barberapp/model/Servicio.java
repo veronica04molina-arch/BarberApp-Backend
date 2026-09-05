@@ -2,22 +2,32 @@ package com.barberapp.barberapp.model;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "servicio")
+@Table(
+        name = "servicio",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_servicio_barbero_nombre",
+                columnNames = {"idbarbero", "nombre"}
+        )
+)
 public class Servicio {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "idbarbero")
+    @JsonAlias("idbarbero")
+    @Column(name = "idbarbero", nullable = false)
     private Integer idBarbero;
 
     @Column(nullable = false, length = 100)
@@ -33,7 +43,7 @@ public class Servicio {
     private String descripcion;
 
     @Column(name = "estado", nullable = false, length = 20)
-    private String estado;
+    private String estado = "activo";
 
     // Constructor vacío
     public Servicio() {

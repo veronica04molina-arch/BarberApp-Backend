@@ -2,10 +2,8 @@ package com.barberapp.barberapp.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,8 +20,11 @@ import com.barberapp.barberapp.service.ServicioService;
 @CrossOrigin(origins = "*")
 public class ServicioController {
 
-    @Autowired
-    private ServicioService servicioService;
+    private final ServicioService servicioService;
+
+    public ServicioController(ServicioService servicioService) {
+        this.servicioService = servicioService;
+    }
 
     // Obtener todos los servicios
     @GetMapping
@@ -37,37 +38,75 @@ public class ServicioController {
         return servicioService.listarServiciosActivos();
     }
 
+    // Obtener un servicio por ID
+    @GetMapping("/{id}")
+    public ResponseEntity<Servicio> obtenerServicio(@PathVariable Integer id) {
+
+        Servicio servicio = servicioService.obtenerServicio(id);
+
+        if (servicio == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(servicio);
+    }
+
     // Registrar un servicio
     @PostMapping
-    public Servicio guardarServicio(@RequestBody Servicio servicio) {
-        return servicioService.guardarServicio(servicio);
+    public ResponseEntity<?> guardarServicio(@RequestBody Servicio servicio) {
+
+        try {
+
+            Servicio nuevoServicio =
+                    servicioService.guardarServicio(servicio);
+
+            return ResponseEntity.ok(nuevoServicio);
+
+        } catch (RuntimeException e) {
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(e.getMessage());
+        }
     }
 
     // Actualizar un servicio
     @PutMapping("/{id}")
-    public Servicio actualizarServicio(@PathVariable Integer id,
-                                    @RequestBody Servicio servicio) {
+    public ResponseEntity<?> actualizarServicio(
+            @PathVariable Integer id,
+            @RequestBody Servicio datosServicio) {
 
-        servicio.setId(id);
+        try {
 
-        return servicioService.guardarServicio(servicio);
+            Servicio servicioActualizado =
+                    servicioService.actualizarServicio(id, datosServicio);
+
+            if (servicioActualizado == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(servicioActualizado);
+
+        } catch (RuntimeException e) {
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(e.getMessage());
+        }
     }
 
-    // Eliminar un servicio
-    @DeleteMapping("/{id}")
-    public void eliminarServicio(@PathVariable Integer id) {
-        servicioService.eliminarServicio(id);
-    }
+    // Desactivar un servicio
+    @PutMapping("/{id}/desactivar")
+    public ResponseEntity<Void> desactivarServicio(
+            @PathVariable Integer id) {
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Servicio> obtenerServicio(@PathVariable Integer id) {
+        boolean desactivado =
+                servicioService.desactivarServicio(id);
 
-    Servicio servicio = servicioService.obtenerServicio(id);
+        if (desactivado) {
+            return ResponseEntity.noContent().build();
+        }
 
-    if (servicio == null) {
         return ResponseEntity.notFound().build();
-    }
-
-    return ResponseEntity.ok(servicio);
     }
 }
