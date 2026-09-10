@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.barberapp.barberapp.dto.CitaClienteDTO;
+import com.barberapp.barberapp.dto.CitaRequest;
 import com.barberapp.barberapp.model.Cita;
 import com.barberapp.barberapp.service.CitaService;
 
@@ -31,12 +33,14 @@ public class CitaController {
     // Listar todas las citas
     @GetMapping
     public ResponseEntity<List<Cita>> listarCitas() {
-        return ResponseEntity.ok(citaService.listarCitas());
+        return ResponseEntity.ok(
+                citaService.listarCitas());
     }
 
     // Buscar una cita por ID
     @GetMapping("/{id}")
-    public ResponseEntity<?> buscarPorId(@PathVariable Integer id) {
+    public ResponseEntity<?> buscarPorId(
+            @PathVariable Integer id) {
 
         return citaService.buscarPorId(id)
                 .map(ResponseEntity::ok)
@@ -45,11 +49,11 @@ public class CitaController {
 
     // Buscar citas de un usuario
     @GetMapping("/usuario/{idUsuario}")
-    public ResponseEntity<List<Cita>> listarPorUsuario(
+    public ResponseEntity<List<CitaClienteDTO>> listarPorUsuario(
             @PathVariable Integer idUsuario) {
 
         return ResponseEntity.ok(
-                citaService.listarPorUsuario(idUsuario));
+                citaService.listarCitasCliente(idUsuario));
     }
 
     // Buscar citas de un barbero
@@ -76,11 +80,11 @@ public class CitaController {
     // Crear una cita
     @PostMapping
     public ResponseEntity<?> guardarCita(
-            @RequestBody Cita cita) {
+            @RequestBody CitaRequest request) {
 
         try {
 
-            Cita nuevaCita = citaService.guardarCita(cita);
+            Cita nuevaCita = citaService.guardarCita(request);
 
             return ResponseEntity.ok(nuevaCita);
 
@@ -123,7 +127,10 @@ public class CitaController {
             @RequestParam Integer idUsuario) {
 
         try {
-            boolean cancelada = citaService.cancelarCita(id, idUsuario);
+
+            boolean cancelada = citaService.cancelarCita(
+                    id,
+                    idUsuario);
 
             if (!cancelada) {
                 return ResponseEntity.notFound().build();
@@ -133,6 +140,7 @@ public class CitaController {
                     "La cita fue cancelada correctamente.");
 
         } catch (RuntimeException e) {
+
             return ResponseEntity.badRequest()
                     .body(e.getMessage());
         }

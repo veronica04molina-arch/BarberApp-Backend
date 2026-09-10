@@ -36,7 +36,7 @@ public class Barbero {
 
     // Constructor con parámetros
     public Barbero(Usuario usuario, String especialidad,
-                Integer experiencia, String estado) {
+            Integer experiencia, String estado) {
         this.usuario = usuario;
         this.especialidad = especialidad;
         this.experiencia = experiencia;

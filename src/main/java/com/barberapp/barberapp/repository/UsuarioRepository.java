@@ -12,9 +12,9 @@ import com.barberapp.barberapp.model.Usuario;
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
     /**
- * Verifica si existe un usuario con el correo indicado.
- */
-boolean existsByEmailIgnoreCase(String email);
+     * Verifica si existe un usuario con el correo indicado.
+     */
+    boolean existsByEmailIgnoreCase(String email);
 
-Usuario findByEmailIgnoreCase(String email);
+    Usuario findByEmailIgnoreCase(String email);
 }

@@ -11,50 +11,96 @@ import org.springframework.web.bind.annotation.RestController;
 import com.barberapp.barberapp.auth.GoogleAuthService;
 import com.barberapp.barberapp.auth.GoogleRegisterRequest;
 import com.barberapp.barberapp.auth.GoogleUser;
+import com.barberapp.barberapp.auth.JwtService;
+import com.barberapp.barberapp.dto.LoginRequest;
+import com.barberapp.barberapp.dto.LoginResponse;
+import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.UsuarioRepository;
+import com.barberapp.barberapp.service.UsuarioService;
 
 @RestController
-@RequestMapping("/auth/google")
+@RequestMapping("/auth")
 @CrossOrigin(origins = "*")
 public class AuthController {
 
-    @Autowired
-    private GoogleAuthService googleAuthService;
+        private final UsuarioService usuarioService;
+        private final JwtService jwtService;
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+        @Autowired
+        private GoogleAuthService googleAuthService;
 
-    @PostMapping
-    public ResponseEntity<?> verificarGoogle(
-            @RequestBody GoogleRegisterRequest request) {
+        @Autowired
+        private UsuarioRepository usuarioRepository;
 
-        try {
+        public AuthController(
+                        UsuarioService usuarioService,
+                        JwtService jwtService) {
 
-            GoogleUser googleUser = googleAuthService.verificarToken(request.getToken());
-
-            if (googleUser == null) {
-
-                return ResponseEntity.badRequest()
-                        .body("Token de Google inválido.");
-
-            }
-
-            if (usuarioRepository.existsByEmailIgnoreCase(googleUser.getEmail())) {
-
-                return ResponseEntity.status(409)
-                        .body("Ya existe una cuenta registrada con ese correo.");
-
-            }
-
-            return ResponseEntity.ok(googleUser);
-
-        } catch (Exception e) {
-
-            return ResponseEntity.internalServerError()
-                    .body(e.getMessage());
-
+                this.usuarioService = usuarioService;
+                this.jwtService = jwtService;
         }
 
-    }
+        @PostMapping("/login")
+        public ResponseEntity<?> login(
+                        @RequestBody LoginRequest request) {
+
+                Usuario usuario = new Usuario();
+
+                usuario.setEmail(request.getEmail());
+                usuario.setPassword(request.getPassword());
+
+                Usuario usuarioAutenticado = usuarioService.iniciarSesion(usuario);
+
+                if (usuarioAutenticado == null) {
+
+                        return ResponseEntity
+                                        .status(401)
+                                        .body("Correo o contraseña incorrectos");
+                }
+
+                String token = jwtService.generarToken(usuarioAutenticado);
+
+                LoginResponse response = new LoginResponse(
+                                token,
+                                usuarioAutenticado.getId(),
+                                usuarioAutenticado.getNombre(),
+                                usuarioAutenticado.getEmail(),
+                                usuarioAutenticado.getRol());
+
+                return ResponseEntity.ok(response);
+        }
+
+        @PostMapping
+        public ResponseEntity<?> verificarGoogle(
+                        @RequestBody GoogleRegisterRequest request) {
+
+                try {
+
+                        GoogleUser googleUser = googleAuthService.verificarToken(request.getToken());
+
+                        if (googleUser == null) {
+
+                                return ResponseEntity.badRequest()
+                                                .body("Token de Google inválido.");
+
+                        }
+
+                        if (usuarioRepository.existsByEmailIgnoreCase(googleUser.getEmail())) {
+
+                                return ResponseEntity.status(409)
+                                                .body("Ya existe una cuenta registrada con ese correo.");
+
+                        }
+
+                        return ResponseEntity.ok(googleUser);
+
+                } catch (Exception e) {
+
+                        return ResponseEntity.internalServerError()
+                                        .body(e.getMessage());
+
+                }
+
+        }
 
 }
