@@ -12,7 +12,10 @@ public interface ServicioRepository extends JpaRepository<Servicio, Integer> {
 
     List<Servicio> findByEstado(String estado);
 
+    List<Servicio> findByIdBarbero(Integer idBarbero);
+
     boolean existsByIdBarberoAndNombreIgnoreCase(
             Integer idBarbero,
             String nombre);
 }
+

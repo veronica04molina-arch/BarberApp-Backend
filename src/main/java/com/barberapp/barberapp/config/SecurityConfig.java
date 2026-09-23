@@ -2,6 +2,7 @@ package com.barberapp.barberapp.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -14,53 +15,69 @@ import com.barberapp.barberapp.auth.JwtAuthenticationFilter;
 @Configuration
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    public SecurityConfig(
-            JwtAuthenticationFilter jwtAuthenticationFilter) {
+        public SecurityConfig(
+                        JwtAuthenticationFilter jwtAuthenticationFilter) {
 
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-    }
+                this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(
-            HttpSecurity http) throws Exception {
+        @Bean
+        public SecurityFilterChain securityFilterChain(
+                        HttpSecurity http) throws Exception {
 
-        http
+                http
 
-            .csrf(csrf -> csrf.disable())
+                                .csrf(csrf -> csrf.disable())
 
-            .cors(cors -> {})
+                                .cors(cors -> {
+                                })
 
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(
-                    SessionCreationPolicy.STATELESS
-                )
-            )
+                                .sessionManagement(session -> session.sessionCreationPolicy(
+                                                SessionCreationPolicy.STATELESS))
 
-            .authorizeHttpRequests(auth -> auth
+                                .authorizeHttpRequests(auth -> auth
 
-                .requestMatchers(
-                    "/auth/**"
-                ).permitAll()
+                                                .requestMatchers("/auth/**")
+                                                .permitAll()
 
-                .requestMatchers(
-                    "/usuarios"
-                ).permitAll()
+                                                .requestMatchers(
+                                                                HttpMethod.POST,
+                                                                "/usuarios/registrar")
+                                                .permitAll()
 
-                .anyRequest().authenticated()
-            )
+                                                .requestMatchers(
+                                                                HttpMethod.OPTIONS,
+                                                                "/**")
+                                                .permitAll()
 
-            .addFilterBefore(
-                jwtAuthenticationFilter,
-                UsernamePasswordAuthenticationFilter.class
-            );
+                                                .requestMatchers(
+                                                                HttpMethod.POST,
+                                                                "/servicios",
+                                                                "/servicios/**")
+                                                .hasRole("BARBERO")
 
-        return http.build();
-    }
-    
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+                                                .requestMatchers(
+                                                                HttpMethod.PUT,
+                                                                "/servicios",
+                                                                "/servicios/**")
+                                                .hasRole("BARBERO")
+
+                                                .requestMatchers("/agenda/barbero/**")
+                                                .hasRole("BARBERO")
+
+                                                .anyRequest().authenticated())
+
+                                .addFilterBefore(
+                                                jwtAuthenticationFilter,
+                                                UsernamePasswordAuthenticationFilter.class);
+
+                return http.build();
+        }
+
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 }

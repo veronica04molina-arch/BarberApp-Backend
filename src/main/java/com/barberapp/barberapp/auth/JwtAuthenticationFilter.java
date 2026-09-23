@@ -3,8 +3,9 @@ package com.barberapp.barberapp.auth;
 import java.io.IOException;
 import java.util.Collections;
 
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -50,7 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (!jwtService.validarToken(token)) {
 
-                        filterChain.doFilter(request, response);
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                         return;
                 }
 
@@ -66,10 +67,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                         if (usuario != null) {
 
+                                String rol = usuario.getRol();
+
+                                SimpleGrantedAuthority autoridad = new SimpleGrantedAuthority(
+                                                "ROLE_" + rol.toUpperCase());
+
                                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                                                 usuario,
                                                 null,
-                                                Collections.emptyList());
+                                                Collections.singletonList(autoridad));
 
                                 authentication.setDetails(
                                                 new WebAuthenticationDetailsSource()

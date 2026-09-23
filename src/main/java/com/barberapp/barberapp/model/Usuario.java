@@ -1,18 +1,15 @@
 package com.barberapp.barberapp.model;
 import java.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
-/**
- * Representa la entidad Usuario del sistema BarberApp.
- * Contiene la información de los clientes y barberos registrados.
- */
 @Entity
 @Table(name = "usuario")
 public class Usuario {
