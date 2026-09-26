@@ -9,18 +9,16 @@ import com.barberapp.barberapp.model.HorarioSemanal;
 
 @Repository
 public interface HorarioSemanalRepository
-        extends JpaRepository<HorarioSemanal, Integer> {
+                extends JpaRepository<HorarioSemanal, Integer> {
 
-    List<HorarioSemanal> findByIdBarbero(Integer idBarbero);
+        List<HorarioSemanal> findByIdBarbero(Integer idBarbero);
 
-    List<HorarioSemanal> findByIdBarberoAndDiaSemana(
-            Integer idBarbero,
-            String diaSemana
-    );
+        List<HorarioSemanal> findByIdBarberoAndDiaSemana(
+                        Integer idBarbero,
+                        String diaSemana);
 
-    List<HorarioSemanal> findByIdBarberoAndDiaSemanaAndEstado(
-            Integer idBarbero,
-            String diaSemana,
-            String estado
-    );
+        List<HorarioSemanal> findByIdBarberoAndDiaSemanaAndEstado(
+                        Integer idBarbero,
+                        String diaSemana,
+                        String estado);
 }

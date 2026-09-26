@@ -2,13 +2,18 @@ package com.barberapp.barberapp.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.dto.CitaClienteDTO;
 import com.barberapp.barberapp.dto.CitaRequest;
@@ -30,19 +35,25 @@ public class CitaService {
         private final BarberoRepository barberoRepository;
         private final ServicioRepository servicioRepository;
         private final CitaServicioRepository citaServicioRepository;
+        private final DisponibilidadService disponibilidadService;
+        private final NotificacionService notificacionService;
 
         public CitaService(
                         CitaRepository citaRepository,
                         UsuarioRepository usuarioRepository,
                         BarberoRepository barberoRepository,
                         ServicioRepository servicioRepository,
-                        CitaServicioRepository citaServicioRepository) {
+                        CitaServicioRepository citaServicioRepository,
+                        DisponibilidadService disponibilidadService,
+                        NotificacionService notificacionService) {
 
                 this.citaRepository = citaRepository;
                 this.usuarioRepository = usuarioRepository;
                 this.barberoRepository = barberoRepository;
                 this.servicioRepository = servicioRepository;
                 this.citaServicioRepository = citaServicioRepository;
+                this.disponibilidadService = disponibilidadService;
+                this.notificacionService = notificacionService;
         }
 
         // Listar todas las citas
@@ -52,12 +63,27 @@ public class CitaService {
 
         // Buscar una cita por ID
         public Optional<Cita> buscarPorId(Integer id) {
-                return citaRepository.findById(id);
+                Optional<Cita> cita = citaRepository.findById(id);
+                cita.ifPresent(this::autorizarLecturaCita);
+                return cita;
         }
 
         // Buscar citas de un usuario
         public List<CitaClienteDTO> listarCitasCliente(
                         Integer idUsuario) {
+
+                Usuario usuarioAutenticado = usuarioAutenticado();
+
+                if (!esCliente(usuarioAutenticado)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Esta ruta está disponible solo para clientes.");
+                }
+
+                if (!usuarioAutenticado.getId().equals(idUsuario)) {
+                        throw new RuntimeException(
+                                        "No puedes consultar las citas de otro usuario.");
+                }
 
                 List<Cita> citas = citaRepository.findByIdUsuario(idUsuario);
 
@@ -65,6 +91,7 @@ public class CitaService {
 
                 for (Cita cita : citas) {
 
+                        // Obtener servicios de la cita
                         List<CitaServicio> relaciones = citaServicioRepository.findByIdCita(
                                         cita.getId());
 
@@ -82,12 +109,22 @@ public class CitaService {
                                 }
                         }
 
+                        // Obtener nombre del barbero
+                        String nombreBarbero = barberoRepository
+                                        .findById(cita.getIdBarbero())
+                                        .map(barbero -> barbero.getUsuario())
+                                        .filter(java.util.Objects::nonNull)
+                                        .map(Usuario::getNombre)
+                                        .orElse("Barbero no disponible");
+
+                        // Crear DTO
                         resultado.add(
                                         new CitaClienteDTO(
                                                         cita.getId(),
                                                         cita.getFecha(),
                                                         cita.getHora(),
                                                         nombresServicios,
+                                                        nombreBarbero,
                                                         cita.getEstado(),
                                                         cita.getNotas()));
                 }
@@ -101,6 +138,7 @@ public class CitaService {
 
         // Buscar citas de un barbero
         public List<Cita> listarPorBarbero(Integer idBarbero) {
+                autorizarBarbero(idBarbero);
                 return citaRepository.findByIdBarbero(idBarbero);
         }
 
@@ -109,6 +147,7 @@ public class CitaService {
                         Integer idBarbero,
                         LocalDate fecha) {
 
+                autorizarBarbero(idBarbero);
                 return citaRepository.findByIdBarberoAndFecha(
                                 idBarbero,
                                 fecha);
@@ -122,7 +161,12 @@ public class CitaService {
                 validarDatosCita(request);
 
                 // Verificar que el usuario exista y tenga rol cliente
+                Usuario autenticado = usuarioAutenticado();
                 validarUsuarioCliente(request.getIdUsuario());
+                if (!esCliente(autenticado) || !autenticado.getId().equals(request.getIdUsuario())) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "Solo puedes crear citas para tu propio usuario.");
+                }
 
                 // Verificar que el barbero exista
                 if (!barberoRepository.existsById(request.getIdBarbero())) {
@@ -136,16 +180,18 @@ public class CitaService {
                                 request.getIdServicios(),
                                 request.getIdBarbero());
 
-                // Verificar disponibilidad del horario
-                boolean horarioOcupado = citaRepository.existsByIdBarberoAndFechaAndHora(
-                                request.getIdBarbero(),
-                                request.getFecha(),
-                                request.getHora());
+                int duracionTotal = 0;
+                for (Integer idServicio : request.getIdServicios()) {
+                        Servicio servicio = servicioRepository.findById(idServicio)
+                                        .orElseThrow();
+                        duracionTotal += servicio.getDuracion();
+                }
 
-                if (horarioOcupado) {
-
+                if (!disponibilidadService.estaDisponible(
+                                request.getIdBarbero(), request.getFecha(),
+                                request.getHora(), duracionTotal)) {
                         throw new RuntimeException(
-                                        "El barbero ya tiene una cita en esa fecha y hora.");
+                                        "El horario solicitado no está disponible para este barbero.");
                 }
 
                 // Crear el objeto Cita
@@ -177,10 +223,31 @@ public class CitaService {
                         citaServicioRepository.save(citaServicio);
                 }
 
+                // Crear notificación para el cliente
+                notificacionService.crearNotificacion(
+                                citaGuardada.getIdUsuario(),
+                                citaGuardada.getId(),
+                                "Tu cita ha sido registrada para el "
+                                                + citaGuardada.getFecha()
+                                                + " a las "
+                                                + citaGuardada.getHora()
+                                                + ".");
+
+                // Crear notificación para el barbero
+                notificacionService.crearNotificacion(
+                                obtenerIdUsuarioBarbero(citaGuardada.getIdBarbero()),
+                                citaGuardada.getId(),
+                                "Tienes una nueva cita para el "
+                                                + citaGuardada.getFecha()
+                                                + " a las "
+                                                + citaGuardada.getHora()
+                                                + ".");
+
                 return citaGuardada;
         }
 
         // Actualizar una cita
+        @Transactional
         public Cita actualizarCita(
                         Integer id,
                         Cita datosCita) {
@@ -191,17 +258,29 @@ public class CitaService {
                         return null;
                 }
 
-                validarDatosCita(datosCita);
-
                 Cita cita = citaExistente.get();
 
+                Usuario autenticado = usuarioAutenticado();
+                autorizarModificacionCita(cita, autenticado);
+                validarDatosCita(datosCita);
+
                 // Verificar que el nuevo usuario exista y tenga rol cliente
-                validarUsuarioCliente(
-                                datosCita.getIdUsuario());
+                if (esCliente(autenticado)
+                                && !autenticado.getId().equals(datosCita.getIdUsuario())) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "No puedes asignar la cita a otro usuario.");
+                }
+
+                // Un barbero puede editar los datos de su cita, pero no reasignarla.
+                if (esBarbero(autenticado)
+                                && !cita.getIdBarbero().equals(datosCita.getIdBarbero())) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "No puedes cambiar el barbero asignado a la cita.");
+                }
+                validarUsuarioCliente(datosCita.getIdUsuario());
 
                 // Verificar que la cita pertenezca al usuario indicado
-                if (!cita.getIdUsuario().equals(
-                                datosCita.getIdUsuario())) {
+                if (!cita.getIdUsuario().equals(datosCita.getIdUsuario())) {
 
                         throw new RuntimeException(
                                         "No puedes modificar una cita que pertenece a otro usuario.");
@@ -225,19 +304,22 @@ public class CitaService {
                                                 datosCita.getFecha())
                                 || !cita.getHora().equals(
                                                 datosCita.getHora());
+                Integer idBarberoAnterior = cita.getIdBarbero();
 
                 // Si cambió el horario, comprobar disponibilidad
                 if (cambioHorario) {
 
-                        boolean horarioOcupado = citaRepository.existsByIdBarberoAndFechaAndHora(
+                        int duracionCitaActual = calcularDuracionCita(cita.getId());
+
+                        if (!disponibilidadService.estaDisponible(
                                         datosCita.getIdBarbero(),
                                         datosCita.getFecha(),
-                                        datosCita.getHora());
-
-                        if (horarioOcupado) {
+                                        datosCita.getHora(),
+                                        duracionCitaActual,
+                                        cita.getId())) {
 
                                 throw new RuntimeException(
-                                                "El barbero ya tiene una cita en esa fecha y hora.");
+                                                "El horario solicitado no está disponible para este barbero.");
                         }
                 }
 
@@ -257,10 +339,43 @@ public class CitaService {
                 cita.setNotas(
                                 datosCita.getNotas());
 
-                return citaRepository.save(cita);
+                Cita citaActualizada = citaRepository.save(cita);
+
+                if (cambioHorario) {
+                        String mensaje = "Tu cita fue modificada para el "
+                                        + citaActualizada.getFecha() + " a las "
+                                        + citaActualizada.getHora() + ".";
+                        notificacionService.crearNotificacion(
+                                        citaActualizada.getIdUsuario(),
+                                        citaActualizada.getId(),
+                                        mensaje);
+
+                        Integer idUsuarioBarberoNuevo = obtenerIdUsuarioBarbero(
+                                        citaActualizada.getIdBarbero());
+                        notificacionService.crearNotificacion(
+                                        idUsuarioBarberoNuevo,
+                                        citaActualizada.getId(),
+                                        "Una cita fue modificada para el "
+                                                        + citaActualizada.getFecha() + " a las "
+                                                        + citaActualizada.getHora() + ".");
+
+                        if (!idBarberoAnterior.equals(datosCita.getIdBarbero())) {
+                                Integer idUsuarioBarberoAnterior = obtenerIdUsuarioBarbero(
+                                                idBarberoAnterior);
+                                if (!idUsuarioBarberoAnterior.equals(idUsuarioBarberoNuevo)) {
+                                        notificacionService.crearNotificacion(
+                                                        idUsuarioBarberoAnterior,
+                                                        citaActualizada.getId(),
+                                                        "La cita fue reasignada a otro barbero.");
+                                }
+                        }
+                }
+
+                return citaActualizada;
         }
 
         // Cancelar una cita
+        @Transactional
         public boolean cancelarCita(
                         Integer id,
                         Integer idUsuario) {
@@ -273,10 +388,10 @@ public class CitaService {
 
                 Cita cita = citaExistente.get();
 
-                // Verificar que la cita pertenece al usuario
-                if (!cita.getIdUsuario().equals(idUsuario)) {
-
-                        throw new RuntimeException(
+                Usuario autenticado = usuarioAutenticado();
+                if (!esCliente(autenticado) || !autenticado.getId().equals(cita.getIdUsuario())
+                                || !autenticado.getId().equals(idUsuario)) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                                         "No puedes cancelar una cita que pertenece a otro usuario.");
                 }
 
@@ -293,7 +408,89 @@ public class CitaService {
 
                 citaRepository.save(cita);
 
+                String mensaje = "La cita del " + cita.getFecha()
+                                + " a las " + cita.getHora() + " fue cancelada.";
+                notificacionService.crearNotificacion(
+                                cita.getIdUsuario(), cita.getId(), mensaje);
+                notificacionService.crearNotificacion(
+                                obtenerIdUsuarioBarbero(cita.getIdBarbero()),
+                                cita.getId(),
+                                "La cita del " + cita.getFecha()
+                                                + " a las " + cita.getHora() + " fue cancelada.");
+
                 return true;
+        }
+
+        public Optional<CitaClienteDTO> obtenerProximaCita(Integer idUsuario) {
+
+                Usuario usuarioAutenticado = usuarioAutenticado();
+
+                if (!esCliente(usuarioAutenticado)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Esta ruta está disponible solo para clientes.");
+                }
+
+                if (!usuarioAutenticado.getId().equals(idUsuario)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "No puedes consultar las citas de otro usuario.");
+                }
+
+                LocalDate hoy = LocalDate.now();
+                LocalTime horaActual = LocalTime.now();
+
+                List<Cita> citas = citaRepository
+                                .findByIdUsuarioAndFechaGreaterThanEqualOrderByFechaAscHoraAsc(
+                                                idUsuario, hoy);
+
+                for (Cita cita : citas) {
+
+                        // No considerar citas canceladas
+                        if ("cancelada".equalsIgnoreCase(cita.getEstado())) {
+                                continue;
+                        }
+
+                        // Si es hoy, verificar que todavía no haya pasado
+                        if (cita.getFecha().equals(hoy)
+                                        && !cita.getHora().isAfter(horaActual)) {
+                                continue;
+                        }
+
+                        List<CitaServicio> relaciones = citaServicioRepository
+                                        .findByIdCita(cita.getId());
+
+                        List<String> nombresServicios = new java.util.ArrayList<>();
+
+                        for (CitaServicio relacion : relaciones) {
+
+                                Servicio servicio = servicioRepository
+                                                .findById(relacion.getIdServicio())
+                                                .orElse(null);
+
+                                if (servicio != null) {
+                                        nombresServicios.add(servicio.getNombre());
+                                }
+                        }
+
+                        String nombreBarbero = barberoRepository
+                                        .findById(cita.getIdBarbero())
+                                        .map(barbero -> barbero.getUsuario())
+                                        .map(Usuario::getNombre)
+                                        .orElse("Barbero no disponible");
+
+                        return Optional.of(
+                                        new CitaClienteDTO(
+                                                        cita.getId(),
+                                                        cita.getFecha(),
+                                                        cita.getHora(),
+                                                        nombresServicios,
+                                                        nombreBarbero,
+                                                        cita.getEstado(),
+                                                        cita.getNotas()));
+                }
+
+                return Optional.empty();
         }
 
         // Validar que el usuario exista y tenga rol cliente
@@ -316,6 +513,61 @@ public class CitaService {
                         throw new RuntimeException(
                                         "Solo los usuarios con rol cliente pueden crear citas.");
                 }
+        }
+
+        private Usuario usuarioAutenticado() {
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                if (authentication == null || !(authentication.getPrincipal() instanceof Usuario usuario)) {
+                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No hay un usuario autenticado.");
+                }
+                return usuario;
+        }
+
+        private boolean esCliente(Usuario usuario) {
+                return "cliente".equalsIgnoreCase(usuario.getRol());
+        }
+
+        private boolean esBarbero(Usuario usuario) {
+                return "barbero".equalsIgnoreCase(usuario.getRol());
+        }
+
+        private Integer idBarberoAutenticado() {
+                Usuario usuario = usuarioAutenticado();
+                if (!esBarbero(usuario)) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Se requiere rol de barbero.");
+                }
+                return barberoRepository.findByUsuarioId(usuario.getId())
+                                .map(barbero -> barbero.getId())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                                "No existe un registro de barbero para este usuario."));
+        }
+
+        private void autorizarBarbero(Integer idBarbero) {
+                if (!idBarberoAutenticado().equals(idBarbero)) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "No tienes permiso para consultar citas de este barbero.");
+                }
+        }
+
+        private void autorizarLecturaCita(Cita cita) {
+                Usuario usuario = usuarioAutenticado();
+                if (esCliente(usuario) && usuario.getId().equals(cita.getIdUsuario()))
+                        return;
+                if (esBarbero(usuario) && barberoRepository.findByUsuarioId(usuario.getId())
+                                .map(barbero -> barbero.getId().equals(cita.getIdBarbero())).orElse(false))
+                        return;
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                "No tienes permiso para consultar esta cita.");
+        }
+
+        private void autorizarModificacionCita(Cita cita, Usuario usuario) {
+                if (esCliente(usuario) && usuario.getId().equals(cita.getIdUsuario()))
+                        return;
+                if (esBarbero(usuario) && barberoRepository.findByUsuarioId(usuario.getId())
+                                .map(barbero -> barbero.getId().equals(cita.getIdBarbero())).orElse(false))
+                        return;
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                "No tienes permiso para modificar esta cita.");
         }
 
         // Validar los servicios seleccionados.
@@ -477,5 +729,33 @@ public class CitaService {
                         throw new RuntimeException(
                                         "La hora de la cita es obligatoria.");
                 }
+        }
+
+        private int calcularDuracionCita(Integer idCita) {
+
+                int total = 0;
+
+                for (CitaServicio relacion : citaServicioRepository.findByIdCita(idCita)) {
+
+                        Servicio servicio = servicioRepository
+                                        .findById(relacion.getIdServicio())
+                                        .orElse(null);
+
+                        if (servicio != null && servicio.getDuracion() != null) {
+                                total += servicio.getDuracion();
+                        }
+                }
+
+                return total;
+        }
+
+        private Integer obtenerIdUsuarioBarbero(Integer idBarbero) {
+
+                return barberoRepository.findById(idBarbero)
+                                .map(barbero -> barbero.getUsuario())
+                                .map(Usuario::getId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "No se encontró el usuario del barbero."));
         }
 }

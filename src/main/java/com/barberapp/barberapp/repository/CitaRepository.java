@@ -43,4 +43,8 @@ public interface CitaRepository extends JpaRepository<Cita, Integer> {
         List<Cita> findByIdBarberoAndFechaGreaterThanEqualOrderByFechaAscHoraAsc(
                         Integer idBarbero,
                         LocalDate fecha);
+
+        List<Cita> findByIdUsuarioAndFechaGreaterThanEqualOrderByFechaAscHoraAsc(
+                        Integer idUsuario,
+                        LocalDate fecha);
 }

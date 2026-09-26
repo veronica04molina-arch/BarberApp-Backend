@@ -10,6 +10,7 @@ public class CitaClienteDTO {
     private LocalDate fecha;
     private LocalTime hora;
     private List<String> servicios;
+    private String nombreBarbero;
     private String estado;
     private String notas;
 
@@ -18,6 +19,7 @@ public class CitaClienteDTO {
             LocalDate fecha,
             LocalTime hora,
             List<String> servicios,
+            String nombreBarbero,
             String estado,
             String notas) {
 
@@ -25,6 +27,7 @@ public class CitaClienteDTO {
         this.fecha = fecha;
         this.hora = hora;
         this.servicios = servicios;
+        this.nombreBarbero = nombreBarbero;
         this.estado = estado;
         this.notas = notas;
     }
@@ -43,6 +46,10 @@ public class CitaClienteDTO {
 
     public List<String> getServicios() {
         return servicios;
+    }
+
+    public String getNombreBarbero() {
+        return nombreBarbero;
     }
 
     public String getEstado() {
