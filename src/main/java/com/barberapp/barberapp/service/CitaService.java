@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.dto.CitaClienteDTO;
 import com.barberapp.barberapp.dto.CitaRequest;
+import com.barberapp.barberapp.model.Barbero;
 import com.barberapp.barberapp.model.Cita;
 import com.barberapp.barberapp.model.CitaServicio;
 import com.barberapp.barberapp.model.Servicio;
@@ -58,7 +59,7 @@ public class CitaService {
 
         // Listar todas las citas
         public List<Cita> listarCitas() {
-                return citaRepository.findAll();
+                return citaRepository.findByIdBarbero(idBarberoAutenticado());
         }
 
         // Buscar una cita por ID
@@ -132,10 +133,6 @@ public class CitaService {
                 return resultado;
         }
 
-        public List<Cita> listarPorUsuario(Integer idUsuario) {
-                return citaRepository.findByIdUsuario(idUsuario);
-        }
-
         // Buscar citas de un barbero
         public List<Cita> listarPorBarbero(Integer idBarbero) {
                 autorizarBarbero(idBarbero);
@@ -162,17 +159,22 @@ public class CitaService {
 
                 // Verificar que el usuario exista y tenga rol cliente
                 Usuario autenticado = usuarioAutenticado();
-                validarUsuarioCliente(request.getIdUsuario());
                 if (!esCliente(autenticado) || !autenticado.getId().equals(request.getIdUsuario())) {
                         throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                                         "Solo puedes crear citas para tu propio usuario.");
                 }
+                validarUsuarioCliente(request.getIdUsuario());
 
-                // Verificar que el barbero exista
-                if (!barberoRepository.existsById(request.getIdBarbero())) {
-
+                // Verificar que el barbero exista y esté activo
+                Barbero barbero = barberoRepository.findById(request.getIdBarbero())
+                                .orElse(null);
+                if (barbero == null) {
                         throw new RuntimeException(
                                         "El barbero indicado no existe.");
+                }
+                if (!"activo".equalsIgnoreCase(barbero.getEstado())) {
+                        throw new RuntimeException(
+                                        "El barbero indicado no está activo.");
                 }
 
                 // Verificar que los servicios sean válidos
@@ -264,27 +266,26 @@ public class CitaService {
                 autorizarModificacionCita(cita, autenticado);
                 validarDatosCita(datosCita);
 
-                // Verificar que el nuevo usuario exista y tenga rol cliente
-                if (esCliente(autenticado)
-                                && !autenticado.getId().equals(datosCita.getIdUsuario())) {
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                                        "No puedes asignar la cita a otro usuario.");
+                // No permitir modificar una cita cancelada
+                if ("cancelada".equalsIgnoreCase(cita.getEstado())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "No se puede reprogramar una cita cancelada.");
                 }
 
-                // Un barbero puede editar los datos de su cita, pero no reasignarla.
-                if (esBarbero(autenticado)
-                                && !cita.getIdBarbero().equals(datosCita.getIdBarbero())) {
+                // No permitir cambiar el usuario de la cita.
+                if (!cita.getIdUsuario().equals(datosCita.getIdUsuario())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "No puedes cambiar el usuario asignado a la cita.");
+                }
+
+                // La reprogramación no permite cambiar el barbero asignado.
+                if (!cita.getIdBarbero().equals(datosCita.getIdBarbero())) {
                         throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                                         "No puedes cambiar el barbero asignado a la cita.");
                 }
                 validarUsuarioCliente(datosCita.getIdUsuario());
-
-                // Verificar que la cita pertenezca al usuario indicado
-                if (!cita.getIdUsuario().equals(datosCita.getIdUsuario())) {
-
-                        throw new RuntimeException(
-                                        "No puedes modificar una cita que pertenece a otro usuario.");
-                }
 
                 // Verificar que el barbero exista
                 if (!barberoRepository.existsById(
@@ -294,20 +295,43 @@ public class CitaService {
                                         "El barbero indicado no existe.");
                 }
 
-                /*
-                 * Verificar si cambió el barbero,
-                 * la fecha o la hora.
-                 */
-                boolean cambioHorario = !cita.getIdBarbero().equals(
-                                datosCita.getIdBarbero())
-                                || !cita.getFecha().equals(
-                                                datosCita.getFecha())
+                // Verificar si cambió la fecha o la hora.
+                boolean cambioHorario = !cita.getFecha().equals(
+                                datosCita.getFecha())
                                 || !cita.getHora().equals(
                                                 datosCita.getHora());
-                Integer idBarberoAnterior = cita.getIdBarbero();
 
                 // Si cambió el horario, comprobar disponibilidad
                 if (cambioHorario) {
+
+                        if (!esCliente(autenticado)) {
+                                throw new ResponseStatusException(
+                                                HttpStatus.FORBIDDEN,
+                                                "Solo el cliente puede reprogramar la cita.");
+                        }
+
+                        LocalDateTime ahora = LocalDateTime.now();
+                        LocalDateTime fechaInicioActual = cita.getFecha().atTime(cita.getHora());
+                        LocalDateTime fechaNueva = datosCita.getFecha().atTime(datosCita.getHora());
+
+                        if (cita.getFechaCreacion() == null
+                                        || !ahora.isBefore(cita.getFechaCreacion().plusMinutes(30))) {
+                                throw new ResponseStatusException(
+                                                HttpStatus.FORBIDDEN,
+                                                "Solo puedes reprogramar durante los primeros 30 minutos después de crear la cita.");
+                        }
+
+                        if (!ahora.isBefore(fechaInicioActual)) {
+                                throw new ResponseStatusException(
+                                                HttpStatus.FORBIDDEN,
+                                                "No puedes reprogramar una cita que ya comenzó.");
+                        }
+
+                        if (!fechaNueva.isAfter(ahora)) {
+                                throw new ResponseStatusException(
+                                                HttpStatus.BAD_REQUEST,
+                                                "La nueva fecha y hora deben ser futuras.");
+                        }
 
                         int duracionCitaActual = calcularDuracionCita(cita.getId());
 
@@ -350,25 +374,12 @@ public class CitaService {
                                         citaActualizada.getId(),
                                         mensaje);
 
-                        Integer idUsuarioBarberoNuevo = obtenerIdUsuarioBarbero(
-                                        citaActualizada.getIdBarbero());
                         notificacionService.crearNotificacion(
-                                        idUsuarioBarberoNuevo,
+                                        obtenerIdUsuarioBarbero(citaActualizada.getIdBarbero()),
                                         citaActualizada.getId(),
                                         "Una cita fue modificada para el "
                                                         + citaActualizada.getFecha() + " a las "
                                                         + citaActualizada.getHora() + ".");
-
-                        if (!idBarberoAnterior.equals(datosCita.getIdBarbero())) {
-                                Integer idUsuarioBarberoAnterior = obtenerIdUsuarioBarbero(
-                                                idBarberoAnterior);
-                                if (!idUsuarioBarberoAnterior.equals(idUsuarioBarberoNuevo)) {
-                                        notificacionService.crearNotificacion(
-                                                        idUsuarioBarberoAnterior,
-                                                        citaActualizada.getId(),
-                                                        "La cita fue reasignada a otro barbero.");
-                                }
-                        }
                 }
 
                 return citaActualizada;
@@ -633,6 +644,12 @@ public class CitaService {
                                                                 + "' no está disponible.");
                         }
 
+                        if (servicio.getDuracion() == null || servicio.getDuracion() <= 0) {
+                                throw new RuntimeException(
+                                                "El servicio '" + servicio.getNombre()
+                                                                + "' debe tener una duración mayor que cero.");
+                        }
+
                         // Verificar que el servicio pertenezca al barbero seleccionado.
                         if (!servicio.getIdBarbero().equals(
                                         idBarbero)) {
@@ -678,13 +695,19 @@ public class CitaService {
                                 LocalDate.now())) {
 
                         throw new RuntimeException(
-                                        "No se puede crear una cita en una fecha anterior a hoy.");
+                                        "No se puede establecer una fecha anterior a hoy.");
                 }
 
                 if (request.getHora() == null) {
 
                         throw new RuntimeException(
                                         "La hora de la cita es obligatoria.");
+                }
+
+                if (!request.getFecha().atTime(request.getHora())
+                                .isAfter(LocalDateTime.now())) {
+                        throw new RuntimeException(
+                                        "La fecha y hora de la cita deben ser futuras.");
                 }
         }
 
@@ -721,7 +744,7 @@ public class CitaService {
                                 LocalDate.now())) {
 
                         throw new RuntimeException(
-                                        "No se puede crear una cita en una fecha anterior a hoy.");
+                                        "No se puede establecer una fecha anterior a hoy.");
                 }
 
                 if (cita.getHora() == null) {

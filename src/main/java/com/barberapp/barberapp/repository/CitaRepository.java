@@ -1,7 +1,6 @@
 package com.barberapp.barberapp.repository;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,12 +16,6 @@ public interface CitaRepository extends JpaRepository<Cita, Integer> {
 
         // Buscar las citas de un barbero
         List<Cita> findByIdBarbero(Integer idBarbero);
-
-        // Verificar si un barbero ya tiene una cita en una fecha y hora
-        boolean existsByIdBarberoAndFechaAndHora(
-                        Integer idBarbero,
-                        LocalDate fecha,
-                        LocalTime hora);
 
         // Buscar citas de un barbero en una fecha específica
         List<Cita> findByIdBarberoAndFecha(
@@ -47,4 +40,12 @@ public interface CitaRepository extends JpaRepository<Cita, Integer> {
         List<Cita> findByIdUsuarioAndFechaGreaterThanEqualOrderByFechaAscHoraAsc(
                         Integer idUsuario,
                         LocalDate fecha);
+
+        // Contar citas por estado
+        long countByEstado(String estado);
+
+        // Buscar citas por rango de fechas
+        List<Cita> findByFechaBetweenOrderByFechaAscHoraAsc(
+                        LocalDate fechaInicio,
+                        LocalDate fechaFin);
 }

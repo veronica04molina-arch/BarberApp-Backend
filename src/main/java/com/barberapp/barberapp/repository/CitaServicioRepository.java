@@ -16,6 +16,7 @@ public interface CitaServicioRepository extends JpaRepository<CitaServicio, Inte
 
     boolean existsByIdCitaAndIdServicio(
             Integer idCita,
-            Integer idServicio
-    );
+            Integer idServicio);
+
+    long countByIdServicio(Integer idServicio);
 }

@@ -12,6 +12,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import com.barberapp.barberapp.auth.JwtAuthenticationFilter;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
@@ -42,13 +43,17 @@ public class SecurityConfig {
                                 .exceptionHandling(exceptions -> exceptions
                                                 .authenticationEntryPoint((request, response, authException) -> response
                                                                 .sendError(HttpServletResponse.SC_UNAUTHORIZED))
-                                                .accessDeniedHandler((request, response, accessDeniedException) -> response
-                                                                .sendError(HttpServletResponse.SC_FORBIDDEN)))
+                                                .accessDeniedHandler((request, response,
+                                                                accessDeniedException) -> response
+                                                                                .sendError(HttpServletResponse.SC_FORBIDDEN)))
 
                                 .authorizeHttpRequests(auth -> auth
 
-                                                .requestMatchers("/auth/**")
+                                                .dispatcherTypeMatchers(DispatcherType.ERROR)
                                                 .permitAll()
+
+                                                .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/auth").permitAll()
 
                                                 .requestMatchers(
                                                                 HttpMethod.POST,
@@ -199,6 +204,8 @@ public class SecurityConfig {
                                                                 HttpMethod.PUT,
                                                                 "/notificaciones/*/leer")
                                                 .hasAnyRole("CLIENTE", "BARBERO")
+
+                                                .requestMatchers("/reportes/**").hasRole("BARBERO")
 
                                                 .anyRequest().authenticated())
 

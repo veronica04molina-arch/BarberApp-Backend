@@ -73,6 +73,11 @@ public class ServicioService {
                     "La duración del servicio es obligatoria.");
         }
 
+        if (servicio.getDuracion() <= 0) {
+            throw new RuntimeException(
+                    "La duración del servicio debe ser mayor que cero.");
+        }
+
         if (servicio.getDescripcion() == null ||
                 servicio.getDescripcion().isBlank()) {
 
@@ -157,6 +162,11 @@ public class ServicioService {
         if (servicio.getDuracion() == null) {
             throw new RuntimeException(
                     "La duración del servicio es obligatoria.");
+        }
+
+        if (servicio.getDuracion() <= 0) {
+            throw new RuntimeException(
+                    "La duración del servicio debe ser mayor que cero.");
         }
 
         if (servicio.getDescripcion() == null ||

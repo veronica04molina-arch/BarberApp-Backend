@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.barberapp.barberapp.repository.UsuarioRepository;
+import com.barberapp.barberapp.service.SesionService;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,13 +23,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         private final JwtService jwtService;
         private final UsuarioRepository usuarioRepository;
+        private final SesionService sesionService;
 
         public JwtAuthenticationFilter(
                         JwtService jwtService,
-                        UsuarioRepository usuarioRepository) {
-
+                        UsuarioRepository usuarioRepository,
+                        SesionService sesionService) {
                 this.jwtService = jwtService;
                 this.usuarioRepository = usuarioRepository;
+                this.sesionService = sesionService;
         }
 
         @Override
@@ -50,6 +53,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String token = authorizationHeader.substring(7);
 
                 if (!jwtService.validarToken(token)) {
+
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        return;
+                }
+
+                if (!sesionService.sesionActiva(token)) {
 
                         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                         return;

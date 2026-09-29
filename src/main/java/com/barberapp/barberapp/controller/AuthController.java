@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.auth.GoogleAuthService;
 import com.barberapp.barberapp.auth.GoogleRegisterRequest;
@@ -16,6 +17,7 @@ import com.barberapp.barberapp.dto.LoginRequest;
 import com.barberapp.barberapp.dto.LoginResponse;
 import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.UsuarioRepository;
+import com.barberapp.barberapp.service.SesionService;
 import com.barberapp.barberapp.service.UsuarioService;
 
 @RestController
@@ -25,6 +27,7 @@ public class AuthController {
 
         private final UsuarioService usuarioService;
         private final JwtService jwtService;
+        private final SesionService sesionService;
 
         @Autowired
         private GoogleAuthService googleAuthService;
@@ -34,10 +37,12 @@ public class AuthController {
 
         public AuthController(
                         UsuarioService usuarioService,
-                        JwtService jwtService) {
+                        JwtService jwtService,
+                        SesionService sesionService) {
 
                 this.usuarioService = usuarioService;
                 this.jwtService = jwtService;
+                this.sesionService = sesionService;
         }
 
         @PostMapping("/login")
@@ -59,6 +64,10 @@ public class AuthController {
                 }
 
                 String token = jwtService.generarToken(usuarioAutenticado);
+
+                sesionService.registrarSesion(
+                                usuarioAutenticado.getId(),
+                                token);
 
                 LoginResponse response = new LoginResponse(
                                 token,
@@ -101,6 +110,37 @@ public class AuthController {
 
                 }
 
+        }
+
+        @PostMapping("/logout")
+        public ResponseEntity<?> logout(
+                        jakarta.servlet.http.HttpServletRequest request) {
+
+                String authorizationHeader = request.getHeader("Authorization");
+
+                if (authorizationHeader == null
+                                || !authorizationHeader.startsWith("Bearer ")) {
+
+                        return ResponseEntity
+                                        .status(401)
+                                        .body("No se encontró el token de autenticación.");
+                }
+
+                String token = authorizationHeader.substring(7);
+
+                try {
+
+                        sesionService.cerrarSesionPorToken(token);
+
+                        return ResponseEntity.ok(
+                                        "Sesión cerrada correctamente.");
+
+                } catch (ResponseStatusException e) {
+
+                        return ResponseEntity
+                                        .status(e.getStatusCode())
+                                        .body(e.getReason());
+                }
         }
 
 }

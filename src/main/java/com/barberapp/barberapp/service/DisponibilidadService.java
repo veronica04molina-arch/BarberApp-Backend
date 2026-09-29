@@ -75,12 +75,18 @@ public class DisponibilidadService {
                 || fecha == null
                 || hora == null
                 || duracion <= 0
-                || !barberoRepository.existsById(idBarbero)) {
+                || barberoRepository.findById(idBarbero)
+                                .filter(barbero -> "activo".equalsIgnoreCase(barbero.getEstado()))
+                                .isEmpty()) {
 
             return false;
         }
 
         // Validar que la cita no termine después de medianoche
+        if (!fecha.atTime(hora).isAfter(java.time.LocalDateTime.now())) {
+            return false;
+        }
+
         int minutosDesdeMedianoche = hora.getHour() * 60 + hora.getMinute();
 
         if (duracion > 24 * 60 - minutosDesdeMedianoche) {
