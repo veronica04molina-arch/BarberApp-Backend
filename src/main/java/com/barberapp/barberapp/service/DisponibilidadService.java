@@ -112,23 +112,26 @@ public class DisponibilidadService {
                         fecha);
 
         // VALIDAR HORARIO SEMANAL
-        boolean dentroDeHorarioSemanal = horarios.stream().anyMatch(h -> !hora.isBefore(h.getHoraInicio())
-                && !fin.isAfter(h.getHoraFin()));
-
-        // VALIDAR HORARIO ESPECIAL
-        boolean dentroDeHorarioEspecial = excepciones.stream()
+        List<ExcepcionHorario> horariosEspeciales = excepciones.stream()
                 .filter(e -> "HORARIO_ESPECIAL"
                         .equalsIgnoreCase(e.getTipo()))
-                .anyMatch(e -> intervaloContiene(
+                .toList();
+
+        boolean dentroDelHorarioBase;
+        if (horariosEspeciales.isEmpty()) {
+            dentroDelHorarioBase = horarios.stream().anyMatch(h -> !hora.isBefore(h.getHoraInicio())
+                    && !fin.isAfter(h.getHoraFin()));
+        } else {
+            dentroDelHorarioBase = horariosEspeciales.stream().anyMatch(e -> intervaloContiene(
                         e.getHoraInicio(),
                         e.getHoraFin(),
                         hora,
                         fin));
+        }
 
         // Si no está dentro del horario normal
         // ni dentro de un horario especial, no está disponible
-        if (!dentroDeHorarioSemanal
-                && !dentroDeHorarioEspecial) {
+        if (!dentroDelHorarioBase) {
 
             return false;
         }
@@ -211,6 +214,19 @@ public class DisponibilidadService {
             LocalDate fecha,
             int duracion) {
 
+        return obtenerHorariosDisponibles(
+                idBarbero,
+                fecha,
+                duracion,
+                null);
+    }
+
+    public List<LocalTime> obtenerHorariosDisponibles(
+            Integer idBarbero,
+            LocalDate fecha,
+            int duracion,
+            Integer idCitaIgnorar) {
+
         List<LocalTime> horariosDisponibles = new ArrayList<>();
 
         // Validaciones básicas
@@ -232,7 +248,8 @@ public class DisponibilidadService {
                     idBarbero,
                     fecha,
                     hora,
-                    duracion)) {
+                    duracion,
+                    idCitaIgnorar)) {
 
                 horariosDisponibles.add(hora);
             }
@@ -256,15 +273,11 @@ public class DisponibilidadService {
                 .findByIdCita(idCita);
 
         for (CitaServicio relacion : relaciones) {
-
             Servicio servicio = servicioRepository
-                    .findById(
-                            relacion.getIdServicio())
+                    .findById(relacion.getIdServicio())
                     .orElse(null);
 
-            if (servicio != null
-                    && servicio.getDuracion() != null) {
-
+            if (servicio != null && servicio.getDuracion() != null) {
                 total += servicio.getDuracion();
             }
         }
@@ -280,12 +293,6 @@ public class DisponibilidadService {
             LocalTime finCita) {
 
         // Excepción de día completo
-        if (inicioBloque == null
-                && finBloque == null) {
-
-            return true;
-        }
-
         return inicioBloque != null
                 && finBloque != null
                 && !inicioCita.isBefore(inicioBloque)

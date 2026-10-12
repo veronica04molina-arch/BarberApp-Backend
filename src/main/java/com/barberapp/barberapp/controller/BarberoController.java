@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,11 +13,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.barberapp.barberapp.dto.BarberoDTO;
 import com.barberapp.barberapp.model.Barbero;
 import com.barberapp.barberapp.service.BarberoService;
 
 @RestController
 @RequestMapping("/api/barbero")
+@CrossOrigin(origins = "*")
 public class BarberoController {
 
     private final BarberoService barberoService;
@@ -46,21 +49,21 @@ public class BarberoController {
 
     // Registrar un barbero
     @PostMapping
-public ResponseEntity<?> guardarBarbero(@RequestBody Barbero barbero) {
+    public ResponseEntity<?> guardarBarbero(@RequestBody Barbero barbero) {
 
-    try {
+        try {
 
-        Barbero nuevoBarbero = barberoService.guardarBarbero(barbero);
+            Barbero nuevoBarbero = barberoService.guardarBarbero(barbero);
 
-        return ResponseEntity.ok(nuevoBarbero);
+            return ResponseEntity.ok(nuevoBarbero);
 
-    } catch (RuntimeException e) {
+        } catch (RuntimeException e) {
 
-        return ResponseEntity
-                .badRequest()
-                .body(e.getMessage());
+            return ResponseEntity
+                    .badRequest()
+                    .body(e.getMessage());
+        }
     }
-}
 
     // Actualizar un barbero
     @PutMapping("/{id}")
@@ -68,8 +71,7 @@ public ResponseEntity<?> guardarBarbero(@RequestBody Barbero barbero) {
             @PathVariable Integer id,
             @RequestBody Barbero datosBarbero) {
 
-        Barbero barberoActualizado =
-                barberoService.actualizarBarbero(id, datosBarbero);
+        Barbero barberoActualizado = barberoService.actualizarBarbero(id, datosBarbero);
 
         if (barberoActualizado != null) {
             return ResponseEntity.ok(barberoActualizado);
@@ -80,14 +82,26 @@ public ResponseEntity<?> guardarBarbero(@RequestBody Barbero barbero) {
 
     // Desactivar un barbero
     @PutMapping("/{id}/desactivar")
-public ResponseEntity<Void> desactivarBarbero(@PathVariable Integer id) {
+    public ResponseEntity<Void> desactivarBarbero(@PathVariable Integer id) {
 
-    boolean desactivado = barberoService.desactivarBarbero(id);
+        boolean desactivado = barberoService.desactivarBarbero(id);
 
-    if (desactivado) {
-        return ResponseEntity.noContent().build();
+        if (desactivado) {
+            return ResponseEntity.noContent().build();
+        }
+
+        return ResponseEntity.notFound().build();
     }
 
-    return ResponseEntity.notFound().build();
-}
+    @GetMapping("/activos")
+    public List<BarberoDTO> listarActivos() {
+        return barberoService.listarBarberos().stream()
+                .filter(b -> "activo".equalsIgnoreCase(b.getEstado()))
+                .map(b -> new BarberoDTO(
+                        b.getId(),
+                        b.getUsuario().getNombre(),
+                        b.getEspecialidad(),
+                        b.getExperiencia()))
+                .toList();
+    }
 }

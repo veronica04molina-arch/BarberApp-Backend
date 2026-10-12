@@ -1,5 +1,7 @@
 package com.barberapp.barberapp.model;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -20,6 +22,12 @@ public class CitaServicio {
 
     @Column(name = "idservicio", nullable = false)
     private Integer idServicio;
+
+    @Column(name = "precio_aplicado", precision = 10, scale = 2)
+    private BigDecimal precioAplicado;
+
+    @Column(name = "descripcion_aplicada", columnDefinition = "TEXT")
+    private String descripcionAplicada;
 
     public CitaServicio() {
     }
@@ -47,4 +55,21 @@ public class CitaServicio {
     public void setIdServicio(Integer idServicio) {
         this.idServicio = idServicio;
     }
+
+    public BigDecimal getPrecioAplicado() {
+        return precioAplicado;
+    }
+
+    public void setPrecioAplicado(BigDecimal precioAplicado) {
+        this.precioAplicado = precioAplicado;
+    }
+
+    public String getDescripcionAplicada() {
+        return descripcionAplicada;
+    }
+
+    public void setDescripcionAplicada(String descripcionAplicada) {
+        this.descripcionAplicada = descripcionAplicada;
+    }
+
 }

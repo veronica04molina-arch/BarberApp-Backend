@@ -1,5 +1,6 @@
 package com.barberapp.barberapp.model;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -95,4 +96,25 @@ public class Usuario {
     public void setFechaRegistro(LocalDate fechaRegistro) {
         this.fechaRegistro = fechaRegistro;
     }
+
+    // Dentro de tu clase Usuario:
+private String resetToken;
+private LocalDateTime resetTokenExpiration;
+
+// Getters y Setters:
+public String getResetToken() {
+    return resetToken;
+}
+
+public void setResetToken(String resetToken) {
+    this.resetToken = resetToken;
+}
+
+public LocalDateTime getResetTokenExpiration() {
+    return resetTokenExpiration;
+}
+
+public void setResetTokenExpiration(LocalDateTime resetTokenExpiration) {
+    this.resetTokenExpiration = resetTokenExpiration;
+}
 }

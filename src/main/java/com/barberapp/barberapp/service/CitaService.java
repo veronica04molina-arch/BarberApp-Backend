@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -166,7 +167,7 @@ public class CitaService {
                 validarUsuarioCliente(request.getIdUsuario());
 
                 // Verificar que el barbero exista y esté activo
-                Barbero barbero = barberoRepository.findById(request.getIdBarbero())
+                Barbero barbero = barberoRepository.findByIdForUpdate(request.getIdBarbero())
                                 .orElse(null);
                 if (barbero == null) {
                         throw new RuntimeException(
@@ -182,12 +183,13 @@ public class CitaService {
                                 request.getIdServicios(),
                                 request.getIdBarbero());
 
-                int duracionTotal = 0;
-                for (Integer idServicio : request.getIdServicios()) {
-                        Servicio servicio = servicioRepository.findById(idServicio)
-                                        .orElseThrow();
-                        duracionTotal += servicio.getDuracion();
-                }
+                List<Servicio> serviciosSeleccionados = request.getIdServicios().stream()
+                                .map(idServicio -> servicioRepository.findById(idServicio).orElseThrow())
+                                .toList();
+
+                int duracionTotal = serviciosSeleccionados.stream()
+                                .mapToInt(Servicio::getDuracion)
+                                .sum();
 
                 if (!disponibilidadService.estaDisponible(
                                 request.getIdBarbero(), request.getFecha(),
@@ -215,12 +217,14 @@ public class CitaService {
                 Cita citaGuardada = citaRepository.save(cita);
 
                 // Guardar los servicios seleccionados (máximo 3)
-                for (Integer idServicio : request.getIdServicios()) {
+                for (Servicio servicio : serviciosSeleccionados) {
 
                         CitaServicio citaServicio = new CitaServicio();
 
                         citaServicio.setIdCita(citaGuardada.getId());
-                        citaServicio.setIdServicio(idServicio);
+                        citaServicio.setIdServicio(servicio.getId());
+                        citaServicio.setPrecioAplicado(servicio.getPrecio());
+                        citaServicio.setDescripcionAplicada(servicio.getDescripcion());
 
                         citaServicioRepository.save(citaServicio);
                 }
@@ -249,7 +253,7 @@ public class CitaService {
         }
 
         // Actualizar una cita
-        @Transactional
+        @Transactional(noRollbackFor = ResponseStatusException.class)
         public Cita actualizarCita(
                         Integer id,
                         Cita datosCita) {
@@ -264,6 +268,14 @@ public class CitaService {
 
                 Usuario autenticado = usuarioAutenticado();
                 autorizarModificacionCita(cita, autenticado);
+
+                confirmarCitaPendienteSiVencio(cita, LocalDateTime.now());
+                if ("confirmada".equalsIgnoreCase(cita.getEstado())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "La cita ya fue confirmada y no puede modificarse.");
+                }
+
                 validarDatosCita(datosCita);
 
                 // No permitir modificar una cita cancelada
@@ -385,6 +397,29 @@ public class CitaService {
                 return citaActualizada;
         }
 
+        /**
+         * Confirma las citas pendientes cuya ventana de edicion de 30 minutos ya
+         * vencio. La fecha y hora programadas de la cita no intervienen en esta
+         * decision.
+         */
+        @Scheduled(fixedDelay = 60_000)
+        @Transactional
+        public void confirmarCitasPendientesVencidas() {
+                confirmarCitasPendientesVencidas(LocalDateTime.now());
+        }
+
+        void confirmarCitasPendientesVencidas(LocalDateTime ahora) {
+                LocalDateTime fechaCreacionLimite = ahora.minusMinutes(30);
+                List<Cita> citasPendientes = citaRepository
+                                .findByEstadoAndFechaCreacionLessThanEqual(
+                                                "pendiente",
+                                                fechaCreacionLimite);
+
+                for (Cita cita : citasPendientes) {
+                        confirmarCitaPendienteSiVencio(cita, ahora);
+                }
+        }
+
         // Cancelar una cita
         @Transactional
         public boolean cancelarCita(
@@ -400,18 +435,32 @@ public class CitaService {
                 Cita cita = citaExistente.get();
 
                 Usuario autenticado = usuarioAutenticado();
-                if (!esCliente(autenticado) || !autenticado.getId().equals(cita.getIdUsuario())
+
+                if (!esCliente(autenticado)
+                                || !autenticado.getId().equals(cita.getIdUsuario())
                                 || !autenticado.getId().equals(idUsuario)) {
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
                                         "No puedes cancelar una cita que pertenece a otro usuario.");
                 }
 
                 // Verificar que la cita no esté cancelada
-                if ("cancelada".equalsIgnoreCase(
-                                cita.getEstado())) {
+                if ("cancelada".equalsIgnoreCase(cita.getEstado())) {
 
                         throw new RuntimeException(
                                         "La cita ya se encuentra cancelada.");
+                }
+
+                // Verificar límite de 30 minutos para cancelar
+                LocalDateTime ahora = LocalDateTime.now();
+
+                if (cita.getFechaCreacion() == null
+                                || !ahora.isBefore(cita.getFechaCreacion().plusMinutes(30))) {
+
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Solo puedes cancelar durante los primeros 30 minutos después de crear la cita.");
                 }
 
                 // Cambiar el estado de la cita
@@ -421,13 +470,78 @@ public class CitaService {
 
                 String mensaje = "La cita del " + cita.getFecha()
                                 + " a las " + cita.getHora() + " fue cancelada.";
+
                 notificacionService.crearNotificacion(
-                                cita.getIdUsuario(), cita.getId(), mensaje);
+                                cita.getIdUsuario(),
+                                cita.getId(),
+                                mensaje);
+
                 notificacionService.crearNotificacion(
                                 obtenerIdUsuarioBarbero(cita.getIdBarbero()),
                                 cita.getId(),
                                 "La cita del " + cita.getFecha()
                                                 + " a las " + cita.getHora() + " fue cancelada.");
+
+                return true;
+        }
+
+        // Marcar una cita como completada
+        @Transactional
+        public boolean completarCita(Integer id) {
+
+                Optional<Cita> citaExistente = citaRepository.findById(id);
+
+                if (citaExistente.isEmpty()) {
+                        return false;
+                }
+
+                Cita cita = citaExistente.get();
+
+                // Verificar que el usuario autenticado sea barbero
+                Usuario autenticado = usuarioAutenticado();
+
+                if (!esBarbero(autenticado)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Solo un barbero puede marcar una cita como completada.");
+                }
+
+                // Obtener el barbero correspondiente al usuario autenticado
+                Integer idBarbero = idBarberoAutenticado();
+
+                // Verificar que la cita pertenezca a este barbero
+                if (!idBarbero.equals(cita.getIdBarbero())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "No puedes completar una cita asignada a otro barbero.");
+                }
+
+                // Verificar que la cita no esté cancelada
+                if ("cancelada".equalsIgnoreCase(cita.getEstado())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "No se puede completar una cita cancelada.");
+                }
+
+                // Verificar que no esté ya completada
+                if ("completada".equalsIgnoreCase(cita.getEstado())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "La cita ya se encuentra completada.");
+                }
+
+                // Cambiar el estado
+                cita.setEstado("completada");
+
+                citaRepository.save(cita);
+
+                // Notificar al cliente
+                notificacionService.crearNotificacion(
+                                cita.getIdUsuario(),
+                                cita.getId(),
+                                "Tu cita del " + cita.getFecha()
+                                                + " a las " + cita.getHora()
+                                                + " ha sido completada.");
 
                 return true;
         }
@@ -579,6 +693,17 @@ public class CitaService {
                         return;
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                                 "No tienes permiso para modificar esta cita.");
+        }
+
+        private void confirmarCitaPendienteSiVencio(Cita cita, LocalDateTime ahora) {
+                if (!"pendiente".equalsIgnoreCase(cita.getEstado())
+                                || cita.getFechaCreacion() == null
+                                || ahora.isBefore(cita.getFechaCreacion().plusMinutes(30))) {
+                        return;
+                }
+
+                cita.setEstado("confirmada");
+                citaRepository.save(cita);
         }
 
         // Validar los servicios seleccionados.

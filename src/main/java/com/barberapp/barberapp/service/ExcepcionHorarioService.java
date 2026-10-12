@@ -7,22 +7,37 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.barberapp.barberapp.model.Cita;
+import com.barberapp.barberapp.model.CitaServicio;
 import com.barberapp.barberapp.model.ExcepcionHorario;
+import com.barberapp.barberapp.model.Servicio;
 import com.barberapp.barberapp.repository.BarberoRepository;
+import com.barberapp.barberapp.repository.CitaRepository;
+import com.barberapp.barberapp.repository.CitaServicioRepository;
 import com.barberapp.barberapp.repository.ExcepcionHorarioRepository;
+import com.barberapp.barberapp.repository.ServicioRepository;
 
 @Service
 public class ExcepcionHorarioService {
 
         private final ExcepcionHorarioRepository excepcionHorarioRepository;
         private final BarberoRepository barberoRepository;
+        private final CitaRepository citaRepository;
+        private final CitaServicioRepository citaServicioRepository;
+        private final ServicioRepository servicioRepository;
 
         public ExcepcionHorarioService(
                         ExcepcionHorarioRepository excepcionHorarioRepository,
-                        BarberoRepository barberoRepository) {
+                        BarberoRepository barberoRepository,
+                        CitaRepository citaRepository,
+                        CitaServicioRepository citaServicioRepository,
+                        ServicioRepository servicioRepository) {
 
                 this.excepcionHorarioRepository = excepcionHorarioRepository;
                 this.barberoRepository = barberoRepository;
+                this.citaRepository = citaRepository;
+                this.citaServicioRepository = citaServicioRepository;
+                this.servicioRepository = servicioRepository;
         }
 
         // LISTAR TODAS LAS EXCEPCIONES
@@ -82,6 +97,8 @@ public class ExcepcionHorarioService {
 
                 validarExcepcionNoSuperpuesta(excepcion);
 
+                validarCitasNoSuperpuestas(excepcion, false);
+
                 return excepcionHorarioRepository.save(excepcion);
         }
 
@@ -105,6 +122,12 @@ public class ExcepcionHorarioService {
                 // El tipo se puede modificar
                 String tipo = normalizarTipo(
                                 datosExcepcion.getTipo());
+
+                validarHoras(tipo,
+                                excepcion.getHoraInicio(),
+                                excepcion.getHoraFin());
+
+                validarCitasNoSuperpuestas(excepcion, true);
 
                 excepcion.setTipo(tipo);
 
@@ -181,13 +204,23 @@ public class ExcepcionHorarioService {
         private void validarHoras(
                         ExcepcionHorario excepcion) {
 
-                LocalTime horaInicio = excepcion.getHoraInicio();
+                validarHoras(excepcion.getTipo(),
+                                excepcion.getHoraInicio(),
+                                excepcion.getHoraFin());
+        }
 
-                LocalTime horaFin = excepcion.getHoraFin();
+        private void validarHoras(
+                        String tipo,
+                        LocalTime horaInicio,
+                        LocalTime horaFin) {
 
                 // Si no se envía ninguna hora,
                 // la excepción aplica a todo el día.
                 if (horaInicio == null && horaFin == null) {
+                        if ("HORARIO_ESPECIAL".equalsIgnoreCase(tipo)) {
+                                throw new RuntimeException(
+                                                "HORARIO_ESPECIAL debe indicar la hora de inicio y la hora de finalización.");
+                        }
                         return;
                 }
 
@@ -310,5 +343,89 @@ public class ExcepcionHorarioService {
                                                 "La excepción de horario se superpone con otra excepción existente.");
                         }
                 }
+        }
+
+        // VALIDAR QUE UNA EXCEPCIÓN NO BLOQUEE CITAS ACTIVAS
+        private void validarCitasNoSuperpuestas(
+                        ExcepcionHorario excepcion,
+                        boolean esActualizacion) {
+
+                List<Cita> citas = citaRepository.findByIdBarberoAndFecha(
+                                excepcion.getIdBarbero(),
+                                excepcion.getFecha());
+
+                boolean excepcionTodoElDia = excepcion.getHoraInicio() == null
+                                && excepcion.getHoraFin() == null;
+
+                String operacion = esActualizacion ? "actualizar" : "crear";
+
+                for (Cita cita : citas) {
+
+                        if (!citaBloqueaDisponibilidad(cita)) {
+                                continue;
+                        }
+
+                        if (excepcionTodoElDia) {
+                                throw new RuntimeException(
+                                                "No se puede " + operacion
+                                                                + " la excepción porque existen citas agendadas para esa fecha.");
+                        }
+
+                        if (excepcionSeSuperponeConCita(excepcion, cita)) {
+                                throw new RuntimeException(
+                                                "No se puede " + operacion
+                                                                + " la excepción porque existe una cita agendada en ese horario.");
+                        }
+                }
+        }
+
+        private boolean citaBloqueaDisponibilidad(Cita cita) {
+
+                return "pendiente".equalsIgnoreCase(cita.getEstado())
+                                || "confirmada".equalsIgnoreCase(cita.getEstado());
+        }
+
+        private boolean excepcionSeSuperponeConCita(
+                        ExcepcionHorario excepcion,
+                        Cita cita) {
+
+                LocalTime inicioExcepcion = excepcion.getHoraInicio();
+                LocalTime finExcepcion = excepcion.getHoraFin();
+                LocalTime inicioCita = cita.getHora();
+                int duracionTotal = obtenerDuracionTotalCita(cita.getId());
+
+                // Una cita sin servicios asociados sigue reservando, como mÃ­nimo, su hora de
+                // inicio.
+                if (duracionTotal <= 0) {
+                        return !inicioCita.isBefore(inicioExcepcion)
+                                        && inicioCita.isBefore(finExcepcion);
+                }
+
+                LocalTime finCita = inicioCita.plusMinutes(duracionTotal);
+
+                boolean seSuperpone = inicioExcepcion.isBefore(finCita)
+                                && finExcepcion.isAfter(inicioCita);
+
+                return seSuperpone;
+        }
+
+        private int obtenerDuracionTotalCita(Integer idCita) {
+
+                int total = 0;
+
+                List<CitaServicio> relaciones = citaServicioRepository
+                                .findByIdCita(idCita);
+
+                for (CitaServicio relacion : relaciones) {
+                        Servicio servicio = servicioRepository
+                                        .findById(relacion.getIdServicio())
+                                        .orElse(null);
+
+                        if (servicio != null && servicio.getDuracion() != null) {
+                                total += servicio.getDuracion();
+                        }
+                }
+
+                return total;
         }
 }

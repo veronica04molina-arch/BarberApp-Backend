@@ -32,13 +32,15 @@ public class DisponibilidadController {
     public ResponseEntity<List<LocalTime>> obtenerHorariosDisponibles(
             @PathVariable Integer idBarbero,
             @PathVariable LocalDate fecha,
-            @RequestParam int duracion) {
+            @RequestParam int duracion,
+            @RequestParam(required = false) Integer idCitaIgnorar) {
 
         List<LocalTime> horarios =
                 disponibilidadService.obtenerHorariosDisponibles(
                         idBarbero,
                         fecha,
-                        duracion);
+                        duracion,
+                        idCitaIgnorar);
 
         return ResponseEntity.ok(horarios);
     }

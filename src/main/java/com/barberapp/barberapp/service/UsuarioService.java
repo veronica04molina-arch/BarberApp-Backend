@@ -1,8 +1,10 @@
 package com.barberapp.barberapp.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,19 +16,21 @@ import com.barberapp.barberapp.repository.UsuarioRepository;
 @Service
 public class UsuarioService {
 
+    private final EmailService emailService;
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UsuarioService(
             UsuarioRepository usuarioRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder, EmailService emailService) {
 
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
     }
 
     // Normaliza el nombre del usuario.
-    
+
     private String normalizarNombre(String nombre) {
 
         return Arrays.stream(
@@ -186,4 +190,116 @@ public class UsuarioService {
 
         return usuarioEncontrado;
     }
+
+    /**
+     * Genera un token de recuperación para el usuario y establece una expiración de
+     * 15 minutos.
+     */
+    public String generarTokenRecuperacion(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            throw new RuntimeException("El correo electrónico es obligatorio.");
+        }
+
+        Usuario usuario = usuarioRepository.findByEmailIgnoreCase(email.trim());
+
+        if (usuario == null) {
+            throw new RuntimeException("El correo ingresado no está registrado.");
+        }
+
+        // Generar token
+        String token = UUID.randomUUID().toString();
+        usuario.setResetToken(token);
+        usuario.setResetTokenExpiration(LocalDateTime.now().plusMinutes(15));
+
+        usuarioRepository.save(usuario);
+
+        // 2. Enviar el correo electrónico
+        emailService.enviarCorreoRecuperacion(usuario.getEmail(), token);
+
+        return token;
+    }
+
+    /**
+     * Valida el token/correo y actualiza la contraseña en la base de datos con
+     * BCrypt.
+     */
+    public void restablecerPassword(String email, String token, String nuevaPassword) {
+        if (nuevaPassword == null || nuevaPassword.length() < 6) {
+            throw new RuntimeException("La nueva contraseña debe tener al menos 6 caracteres.");
+        }
+
+        Usuario usuario = usuarioRepository.findByEmailIgnoreCase(email.trim());
+
+        if (usuario == null) {
+            throw new RuntimeException("Usuario no encontrado.");
+        }
+
+        // Validar token y tiempo de expiración
+        if (usuario.getResetToken() == null || !usuario.getResetToken().equals(token)) {
+            throw new RuntimeException("El código o token de recuperación es inválido.");
+        }
+
+        if (usuario.getResetTokenExpiration() == null
+                || usuario.getResetTokenExpiration().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("El token de recuperación ha expirado. Solicita uno nuevo.");
+        }
+
+        // Hashear y actualizar contraseña
+        usuario.setPassword(passwordEncoder.encode(nuevaPassword.trim()));
+
+        // Limpiar el token para que no se reutlice
+        usuario.setResetToken(null);
+        usuario.setResetTokenExpiration(null);
+
+        usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Cambia la contraseña del usuario autenticado.
+     */
+    public void cambiarPassword(String identificador, String nuevaPassword) {
+
+    if (nuevaPassword == null || nuevaPassword.trim().length() < 8) {
+        throw new RuntimeException(
+                "La nueva contraseña debe tener al menos 8 caracteres.");
+    }
+
+    Usuario usuario = buscarPorIdentificador(identificador);
+
+    if (usuario == null) {
+        throw new RuntimeException("Usuario no encontrado.");
+    }
+
+    if (passwordEncoder.matches(nuevaPassword, usuario.getPassword())) {
+        throw new RuntimeException(
+                "La nueva contraseña no puede ser igual a la actual.");
+    }
+
+    usuario.setPassword(passwordEncoder.encode(nuevaPassword.trim()));
+    usuario.setResetToken(null);
+    usuario.setResetTokenExpiration(null);
+
+    usuarioRepository.save(usuario);
+}
+
+private Usuario buscarPorIdentificador(String identificador) {
+
+    if (identificador == null) {
+        return null;
+    }
+
+    String valor = identificador.trim();
+
+    Usuario porEmail = usuarioRepository.findByEmailIgnoreCase(valor);
+
+    if (porEmail != null) {
+        return porEmail;
+    }
+
+    try {
+        return usuarioRepository.findById(Integer.parseInt(valor)).orElse(null);
+    } catch (NumberFormatException e) {
+        return null;
+    }
+}
 }

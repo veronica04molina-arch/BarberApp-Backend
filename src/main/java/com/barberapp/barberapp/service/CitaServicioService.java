@@ -110,6 +110,11 @@ public class CitaServicioService {
             );
         }
 
+        // Guardar el precio y la descripción actuales únicamente al crear
+        // la relación. Las relaciones existentes nunca se recalculan.
+        citaServicio.setPrecioAplicado(servicio.getPrecio());
+        citaServicio.setDescripcionAplicada(servicio.getDescripcion());
+
         return citaServicioRepository.save(citaServicio);
     }
 

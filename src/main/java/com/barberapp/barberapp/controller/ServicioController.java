@@ -37,6 +37,11 @@ public class ServicioController {
         return servicioService.listarServiciosActivos();
     }
 
+    @GetMapping("/mis-servicios")
+    public List<Servicio> listarServiciosDelBarberoAutenticado() {
+        return servicioService.listarServiciosDelBarberoAutenticado();
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Servicio> obtenerServicio(
             @PathVariable Integer id) {
@@ -106,6 +111,19 @@ public class ServicioController {
         boolean desactivado = servicioService.desactivarServicio(id);
 
         if (desactivado) {
+            return ResponseEntity.noContent().build();
+        }
+
+        return ResponseEntity.notFound().build();
+    }
+
+    @PutMapping("/{id}/activar")
+    public ResponseEntity<Void> activarServicio(
+            @PathVariable Integer id) {
+
+        boolean activado = servicioService.activarServicio(id);
+
+        if (activado) {
             return ResponseEntity.noContent().build();
         }
 

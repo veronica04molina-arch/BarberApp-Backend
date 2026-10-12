@@ -5,11 +5,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.dto.ReporteCitasDTO;
 import com.barberapp.barberapp.dto.ReporteServicioDTO;
+import com.barberapp.barberapp.model.Barbero;
 import com.barberapp.barberapp.model.Cita;
 import com.barberapp.barberapp.model.Servicio;
+import com.barberapp.barberapp.model.Usuario;
+import com.barberapp.barberapp.repository.BarberoRepository;
 import com.barberapp.barberapp.repository.CitaRepository;
 import com.barberapp.barberapp.repository.CitaServicioRepository;
 import com.barberapp.barberapp.repository.ServicioRepository;
@@ -20,29 +27,44 @@ public class ReporteService {
     private final CitaRepository citaRepository;
     private final CitaServicioRepository citaServicioRepository;
     private final ServicioRepository servicioRepository;
+    private final BarberoRepository barberoRepository;
 
     public ReporteService(
             CitaRepository citaRepository,
             CitaServicioRepository citaServicioRepository,
-            ServicioRepository servicioRepository) {
+            ServicioRepository servicioRepository,
+            BarberoRepository barberoRepository) {
 
         this.citaRepository = citaRepository;
         this.citaServicioRepository = citaServicioRepository;
         this.servicioRepository = servicioRepository;
+        this.barberoRepository = barberoRepository;
     }
 
     // REPORTE GENERAL DE CITAS
     public ReporteCitasDTO obtenerResumenCitas() {
 
-        long total = citaRepository.count();
+        Integer idBarbero = obtenerBarberoAutenticado().getId();
 
-        long pendientes = citaRepository.countByEstado("pendiente");
+        long total = citaRepository.countByIdBarbero(idBarbero);
 
-        long canceladas = citaRepository.countByEstado("cancelada");
+        long pendientes = citaRepository.countByIdBarberoAndEstado(
+                idBarbero, "pendiente");
+
+        long confirmadas = citaRepository.countByIdBarberoAndEstado(
+                idBarbero, "confirmada");
+
+        long completadas = citaRepository.countByIdBarberoAndEstado(
+                idBarbero, "completada");
+
+        long canceladas = citaRepository.countByIdBarberoAndEstado(
+                idBarbero, "cancelada");
 
         return new ReporteCitasDTO(
                 total,
                 pendientes,
+                confirmadas,
+                completadas,
                 canceladas);
     }
 
@@ -61,7 +83,10 @@ public class ReporteService {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
 
-        return citaRepository.findByFechaBetweenOrderByFechaAscHoraAsc(
+        Integer idBarbero = obtenerBarberoAutenticado().getId();
+
+        return citaRepository.findByIdBarberoAndFechaBetweenOrderByFechaAscHoraAsc(
+                idBarbero,
                 fechaInicio,
                 fechaFin);
     }
@@ -69,14 +94,18 @@ public class ReporteService {
     // REPORTE DE SERVICIOS MÁS SOLICITADOS
     public List<ReporteServicioDTO> obtenerServiciosMasSolicitados() {
 
-        List<Servicio> servicios = servicioRepository.findAll();
+        Integer idBarbero = obtenerBarberoAutenticado().getId();
+
+        List<Servicio> servicios = servicioRepository.findByIdBarbero(idBarbero);
 
         List<ReporteServicioDTO> reporte = new ArrayList<>();
 
         for (Servicio servicio : servicios) {
 
-            long cantidad = citaServicioRepository.countByIdServicio(
-                    servicio.getId());
+            long cantidad = citaServicioRepository
+                    .countByIdServicioAndIdBarbero(
+                            servicio.getId(),
+                            idBarbero);
 
             reporte.add(
                     new ReporteServicioDTO(
@@ -90,5 +119,37 @@ public class ReporteService {
                         a.getCantidad()));
 
         return reporte;
+    }
+
+    private Barbero obtenerBarberoAutenticado() {
+
+        Authentication authentication = SecurityContextHolder
+                .getContext()
+                .getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "No hay un usuario autenticado.");
+        }
+
+        Object principal = authentication.getPrincipal();
+
+        if (!(principal instanceof Usuario usuario)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "No se pudo obtener el usuario autenticado.");
+        }
+
+        if (!"barbero".equalsIgnoreCase(usuario.getRol())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "El usuario no tiene rol de barbero.");
+        }
+
+        return barberoRepository.findByUsuarioId(usuario.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "No existe un registro de barbero para este usuario."));
     }
 }

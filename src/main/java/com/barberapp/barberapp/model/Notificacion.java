@@ -32,6 +32,9 @@ public class Notificacion {
     @Column(name = "fechaenvio", nullable = false)
     private LocalDateTime fechaEnvio;
 
+    @Column(name = "fechalectura")
+    private LocalDateTime fechaLectura;
+
     public Notificacion() {
     }
 
@@ -88,5 +91,13 @@ public class Notificacion {
 
     public void setFechaEnvio(LocalDateTime fechaEnvio) {
         this.fechaEnvio = fechaEnvio;
+    }
+
+    public LocalDateTime getFechaLectura() {
+        return fechaLectura;
+    }
+
+    public void setFechaLectura(LocalDateTime fechaLectura) {
+        this.fechaLectura = fechaLectura;
     }
 }

@@ -54,11 +54,19 @@ public class SecurityConfig {
 
                                                 .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/auth").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/auth/google/**").permitAll()
 
                                                 .requestMatchers(
                                                                 HttpMethod.POST,
                                                                 "/usuarios/registrar")
                                                 .permitAll()
+
+                                                .requestMatchers(HttpMethod.POST, "/usuarios/olvide-password")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/usuarios/restablecer-password")
+                                                .permitAll()
+
+                                                .requestMatchers(HttpMethod.PUT, "/usuarios/password").authenticated()
 
                                                 .requestMatchers(
                                                                 HttpMethod.OPTIONS,
@@ -203,6 +211,11 @@ public class SecurityConfig {
                                                 .requestMatchers(
                                                                 HttpMethod.PUT,
                                                                 "/notificaciones/*/leer")
+                                                .hasAnyRole("CLIENTE", "BARBERO")
+
+                                                .requestMatchers(
+                                                                HttpMethod.PUT,
+                                                                "/notificaciones/usuario/*/leer-todas")
                                                 .hasAnyRole("CLIENTE", "BARBERO")
 
                                                 .requestMatchers("/reportes/**").hasRole("BARBERO")

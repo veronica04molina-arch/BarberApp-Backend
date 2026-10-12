@@ -13,6 +13,8 @@ import com.barberapp.barberapp.model.Notificacion;
 import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.NotificacionRepository;
 
+import jakarta.transaction.Transactional;
+
 @Service
 public class NotificacionService {
 
@@ -59,6 +61,7 @@ public class NotificacionService {
         }
 
         notificacion.setEstado("leida");
+        notificacion.setFechaLectura(LocalDateTime.now());
 
         return notificacionRepository.save(notificacion);
     }
@@ -135,5 +138,19 @@ public class NotificacionService {
         }
 
         return usuario;
+    }
+
+    @Transactional
+    public void marcarTodasComoLeidas(Integer idUsuario) {
+
+        Usuario usuario = usuarioAutenticado();
+
+        if (!usuario.getId().equals(idUsuario)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "No puedes modificar las notificaciones de otro usuario.");
+        }
+
+        notificacionRepository.marcarTodasComoLeidas(idUsuario, LocalDateTime.now());
     }
 }

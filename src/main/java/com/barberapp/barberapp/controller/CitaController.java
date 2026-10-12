@@ -178,6 +178,32 @@ public class CitaController {
         }
     }
 
+    @PutMapping("/{id}/completar")
+    public ResponseEntity<?> completarCita(
+            @PathVariable Integer id) {
+
+        try {
+            boolean completada = citaService.completarCita(id);
+
+            if (!completada) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(
+                    "La cita fue marcada como completada.");
+
+        } catch (ResponseStatusException e) {
+            return ResponseEntity
+                    .status(e.getStatusCode())
+                    .body(e.getReason());
+
+        } catch (RuntimeException e) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(e.getMessage());
+        }
+    }
+
     @GetMapping("/usuario/{idUsuario}/proxima")
     public ResponseEntity<?> obtenerProximaCita(
             @PathVariable Integer idUsuario) {

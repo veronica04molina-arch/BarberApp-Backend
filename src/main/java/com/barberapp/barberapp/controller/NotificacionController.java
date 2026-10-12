@@ -52,4 +52,13 @@ public class NotificacionController {
         return ResponseEntity.ok(
                 notificacionService.contarPendientes(idUsuario));
     }
+
+    // MARCAR TODAS COMO LEÍDAS
+    @PutMapping("/usuario/{idUsuario}/leer-todas")
+    public ResponseEntity<Void> marcarTodasComoLeidas(
+            @PathVariable Integer idUsuario) {
+
+        notificacionService.marcarTodasComoLeidas(idUsuario);
+        return ResponseEntity.noContent().build();
+    }
 }

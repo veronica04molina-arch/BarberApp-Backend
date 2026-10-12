@@ -1,6 +1,8 @@
 package com.barberapp.barberapp.repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,6 +24,16 @@ public interface CitaRepository extends JpaRepository<Cita, Integer> {
                         Integer idBarbero,
                         LocalDate fecha);
 
+        List<Cita> findByIdBarberoAndFechaAndHora(
+                        Integer idBarbero,
+                        LocalDate fecha,
+                        LocalTime hora);
+
+        List<Cita> findByIdUsuarioAndFechaAndHora(
+                        Integer idUsuario,
+                        LocalDate fecha,
+                        LocalTime hora);
+
         // Buscar citas de un usuario con un estado específico
         List<Cita> findByIdUsuarioAndEstado(
                         Integer idUsuario,
@@ -31,6 +43,10 @@ public interface CitaRepository extends JpaRepository<Cita, Integer> {
         List<Cita> findByIdBarberoAndEstado(
                         Integer idBarbero,
                         String estado);
+
+        List<Cita> findByEstadoAndFechaCreacionLessThanEqual(
+                        String estado,
+                        LocalDateTime fechaCreacionLimite);
 
         // Buscar citas de un barbero desde una fecha en adelante
         List<Cita> findByIdBarberoAndFechaGreaterThanEqualOrderByFechaAscHoraAsc(
@@ -44,8 +60,19 @@ public interface CitaRepository extends JpaRepository<Cita, Integer> {
         // Contar citas por estado
         long countByEstado(String estado);
 
+        long countByIdBarbero(Integer idBarbero);
+
+        long countByIdBarberoAndEstado(
+                        Integer idBarbero,
+                        String estado);
+
         // Buscar citas por rango de fechas
         List<Cita> findByFechaBetweenOrderByFechaAscHoraAsc(
+                        LocalDate fechaInicio,
+                        LocalDate fechaFin);
+
+        List<Cita> findByIdBarberoAndFechaBetweenOrderByFechaAscHoraAsc(
+                        Integer idBarbero,
                         LocalDate fechaInicio,
                         LocalDate fechaFin);
 }

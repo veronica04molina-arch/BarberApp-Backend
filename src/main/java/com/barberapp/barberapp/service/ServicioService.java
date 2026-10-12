@@ -41,6 +41,11 @@ public class ServicioService {
         return servicioRepository.findByEstado("activo");
     }
 
+    public List<Servicio> listarServiciosDelBarberoAutenticado() {
+        return servicioRepository.findByIdBarbero(
+                obtenerBarberoAutenticado().getId());
+    }
+
     public Optional<Servicio> buscarPorId(Integer id) {
         return servicioRepository.findById(id);
     }
@@ -66,16 +71,6 @@ public class ServicioService {
         if (servicio.getPrecio() == null) {
             throw new RuntimeException(
                     "El precio del servicio es obligatorio.");
-        }
-
-        if (servicio.getDuracion() == null) {
-            throw new RuntimeException(
-                    "La duración del servicio es obligatoria.");
-        }
-
-        if (servicio.getDuracion() <= 0) {
-            throw new RuntimeException(
-                    "La duración del servicio debe ser mayor que cero.");
         }
 
         if (servicio.getDescripcion() == null ||
@@ -104,11 +99,9 @@ public class ServicioService {
                     "Ese barbero ya tiene un servicio con ese nombre.");
         }
 
-        if (servicio.getEstado() == null ||
-                servicio.getEstado().isBlank()) {
-
-            servicio.setEstado("activo");
-        }
+        // Los servicios nuevos siempre se publican activos. El estado no se
+        // recibe como una decisión del cliente.
+        servicio.setEstado("activo");
 
         return servicioRepository.save(servicio);
     }
@@ -140,7 +133,6 @@ public class ServicioService {
         }
 
         servicio.setPrecio(datosServicio.getPrecio());
-        servicio.setDuracion(datosServicio.getDuracion());
         servicio.setDescripcion(datosServicio.getDescripcion());
 
         return servicioRepository.save(servicio);
@@ -179,6 +171,16 @@ public class ServicioService {
 
     public boolean desactivarServicio(Integer id) {
 
+        return cambiarEstadoServicio(id, "inactivo");
+    }
+
+    public boolean activarServicio(Integer id) {
+
+        return cambiarEstadoServicio(id, "activo");
+    }
+
+    private boolean cambiarEstadoServicio(Integer id, String estado) {
+
         Optional<Servicio> servicioExistente = servicioRepository.findById(id);
 
         if (servicioExistente.isEmpty()) {
@@ -196,10 +198,10 @@ public class ServicioService {
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "No tiene permiso para desactivar este servicio.");
+                    "No tiene permiso para modificar este servicio.");
         }
 
-        servicio.setEstado("inactivo");
+        servicio.setEstado(estado);
         servicioRepository.save(servicio);
 
         return true;

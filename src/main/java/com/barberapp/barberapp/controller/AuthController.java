@@ -18,6 +18,7 @@ import com.barberapp.barberapp.dto.LoginResponse;
 import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.UsuarioRepository;
 import com.barberapp.barberapp.service.SesionService;
+import com.barberapp.barberapp.service.CorreoYaRegistradoException;
 import com.barberapp.barberapp.service.UsuarioService;
 
 @RestController
@@ -79,7 +80,8 @@ public class AuthController {
                 return ResponseEntity.ok(response);
         }
 
-        @PostMapping
+        // verificar los datos de Google
+        @PostMapping("/google/verificar")
         public ResponseEntity<?> verificarGoogle(
                         @RequestBody GoogleRegisterRequest request) {
 
@@ -89,27 +91,101 @@ public class AuthController {
 
                         if (googleUser == null) {
 
-                                return ResponseEntity.badRequest()
+                                return ResponseEntity
+                                                .badRequest()
                                                 .body("Token de Google inválido.");
-
                         }
 
-                        if (usuarioRepository.existsByEmailIgnoreCase(googleUser.getEmail())) {
+                        if (usuarioRepository.existsByEmailIgnoreCase(
+                                        googleUser.getEmail())) {
 
-                                return ResponseEntity.status(409)
+                                return ResponseEntity
+                                                .status(409)
                                                 .body("Ya existe una cuenta registrada con ese correo.");
-
                         }
 
                         return ResponseEntity.ok(googleUser);
 
                 } catch (Exception e) {
 
-                        return ResponseEntity.internalServerError()
+                        return ResponseEntity
+                                        .internalServerError()
+                                        .body("No fue posible verificar la cuenta de Google.");
+                }
+        }
+
+        // completar registro y crear usuario
+        @PostMapping("/google/registrar")
+        public ResponseEntity<?> registrarConGoogle(
+                        @RequestBody GoogleRegisterRequest request) {
+
+                try {
+
+                        GoogleUser googleUser = googleAuthService.verificarToken(request.getToken());
+
+                        if (googleUser == null) {
+
+                                return ResponseEntity
+                                                .badRequest()
+                                                .body("Token de Google inválido.");
+                        }
+
+                        if (usuarioRepository.existsByEmailIgnoreCase(
+                                        googleUser.getEmail())) {
+
+                                return ResponseEntity
+                                                .status(409)
+                                                .body("Ya existe una cuenta registrada con ese correo.");
+                        }
+
+                        String nombre = (request.getNombre() != null && !request.getNombre().isBlank())
+                                        ? request.getNombre()
+                                        : googleUser.getNombre();
+
+                        Usuario nuevoUsuario = new Usuario();
+
+                        nuevoUsuario.setNombre(nombre);
+                        nuevoUsuario.setEmail(googleUser.getEmail());
+                        nuevoUsuario.setTelefono(request.getTelefono());
+                        nuevoUsuario.setPassword(request.getPassword());
+
+                        Usuario usuarioRegistrado = usuarioService.guardarUsuario(nuevoUsuario);
+
+                        // Generar JWT de BarberApp
+                        String token = jwtService.generarToken(usuarioRegistrado);
+
+                        // Registrar sesión
+                        sesionService.registrarSesion(
+                                        usuarioRegistrado.getId(),
+                                        token);
+
+                        LoginResponse response = new LoginResponse(
+                                        token,
+                                        usuarioRegistrado.getId(),
+                                        usuarioRegistrado.getNombre(),
+                                        usuarioRegistrado.getEmail(),
+                                        usuarioRegistrado.getRol());
+
+                        return ResponseEntity.ok(response);
+
+                } catch (CorreoYaRegistradoException e) {
+
+                        return ResponseEntity
+                                        .status(409)
+                                        .body("Ya existe una cuenta registrada con ese correo.");
+
+                } catch (RuntimeException e) {
+
+                        return ResponseEntity
+                                        .badRequest()
                                         .body(e.getMessage());
 
-                }
+                } catch (Exception e) {
 
+                        return ResponseEntity
+                                        .internalServerError()
+                                        .body("No fue posible completar el registro con Google.");
+                }
         }
 
         @PostMapping("/logout")
@@ -142,5 +218,4 @@ public class AuthController {
                                         .body(e.getReason());
                 }
         }
-
 }
