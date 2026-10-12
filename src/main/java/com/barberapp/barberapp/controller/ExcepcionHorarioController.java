@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,7 +18,6 @@ import com.barberapp.barberapp.service.ExcepcionHorarioService;
 
 @RestController
 @RequestMapping("/excepciones-horario")
-@CrossOrigin(origins = "*")
 public class ExcepcionHorarioController {
 
         private final ExcepcionHorarioService excepcionHorarioService;

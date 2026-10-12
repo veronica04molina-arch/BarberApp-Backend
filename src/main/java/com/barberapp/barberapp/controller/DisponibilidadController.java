@@ -5,7 +5,6 @@ import java.time.LocalTime;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,7 +15,6 @@ import com.barberapp.barberapp.service.DisponibilidadService;
 
 @RestController
 @RequestMapping("/disponibilidad")
-@CrossOrigin(origins = "*")
 public class DisponibilidadController {
 
     private final DisponibilidadService disponibilidadService;

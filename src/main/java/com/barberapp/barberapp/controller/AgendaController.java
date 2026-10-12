@@ -3,7 +3,6 @@ package com.barberapp.barberapp.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,7 +13,6 @@ import com.barberapp.barberapp.service.AgendaService;
 
 @RestController
 @RequestMapping("/agenda")
-@CrossOrigin(origins = "*")
 public class AgendaController {
 
     private final AgendaService agendaService;

@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,7 +18,6 @@ import com.barberapp.barberapp.service.BarberoService;
 
 @RestController
 @RequestMapping("/api/barbero")
-@CrossOrigin(origins = "*")
 public class BarberoController {
 
     private final BarberoService barberoService;

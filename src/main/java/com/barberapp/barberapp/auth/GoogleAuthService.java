@@ -2,6 +2,7 @@ package com.barberapp.barberapp.auth;
 
 import java.util.Collections;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
@@ -12,14 +13,18 @@ import com.google.api.client.json.gson.GsonFactory;
 @Service
 public class GoogleAuthService {
 
-    private static final String CLIENT_ID = "441400428516-7kocd79b52m7rc8avh9maqu6v1370heq.apps.googleusercontent.com";
+    private final String clientId;
+
+    public GoogleAuthService(@Value("${GOOGLE_CLIENT_ID}") String clientId) {
+        this.clientId = clientId;
+    }
 
     public GoogleUser verificarToken(String token) throws Exception {
 
         GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                 new NetHttpTransport(),
                 GsonFactory.getDefaultInstance())
-                .setAudience(Collections.singletonList(CLIENT_ID))
+                .setAudience(Collections.singletonList(clientId))
                 .build();
 
         GoogleIdToken idToken = verifier.verify(token);
