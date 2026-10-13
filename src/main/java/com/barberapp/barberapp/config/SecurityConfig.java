@@ -204,6 +204,12 @@ public class SecurityConfig {
                                                                 "/citas/**")
                                                 .hasAnyRole("CLIENTE", "BARBERO")
 
+                                                // SERVICIOS ASOCIADOS A CITAS
+                                                .requestMatchers(
+                                                                "/cita-servicios",
+                                                                "/cita-servicios/**")
+                                                .hasAnyRole("CLIENTE", "BARBERO")
+
                                                 // NOTIFICACIONES
                                                 .requestMatchers(
                                                                 HttpMethod.GET,

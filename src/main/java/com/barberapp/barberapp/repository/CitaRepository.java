@@ -57,6 +57,10 @@ public interface CitaRepository extends JpaRepository<Cita, Integer> {
                         Integer idUsuario,
                         LocalDate fecha);
 
+        boolean existsByIdUsuarioAndIdBarbero(
+                        Integer idUsuario,
+                        Integer idBarbero);
+
         // Contar citas por estado
         long countByEstado(String estado);
 

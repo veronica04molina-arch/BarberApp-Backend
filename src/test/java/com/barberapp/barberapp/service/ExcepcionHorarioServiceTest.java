@@ -13,15 +13,21 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.barberapp.barberapp.model.Barbero;
 import com.barberapp.barberapp.model.Cita;
 import com.barberapp.barberapp.model.CitaServicio;
 import com.barberapp.barberapp.model.ExcepcionHorario;
 import com.barberapp.barberapp.model.Servicio;
+import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.BarberoRepository;
 import com.barberapp.barberapp.repository.CitaRepository;
 import com.barberapp.barberapp.repository.CitaServicioRepository;
@@ -51,6 +57,26 @@ class ExcepcionHorarioServiceTest {
 
         @InjectMocks
         private ExcepcionHorarioService excepcionHorarioService;
+
+        @BeforeEach
+        void autenticarBarberoPropietario() {
+                Usuario usuario = new Usuario();
+                usuario.setId(70);
+                usuario.setRol("barbero");
+
+                Barbero barbero = new Barbero();
+                barbero.setId(ID_BARBERO);
+                barbero.setUsuario(usuario);
+
+                SecurityContextHolder.getContext().setAuthentication(
+                                new UsernamePasswordAuthenticationToken(usuario, null));
+                when(barberoRepository.findByUsuarioId(70)).thenReturn(Optional.of(barbero));
+        }
+
+        @AfterEach
+        void limpiarContexto() {
+                SecurityContextHolder.clearContext();
+        }
 
         private void prepararCreacion() {
                 when(barberoRepository.existsById(ID_BARBERO)).thenReturn(true);

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.model.CitaServicio;
 import com.barberapp.barberapp.service.CitaServicioService;
@@ -37,27 +38,37 @@ public class CitaServicioController {
         public ResponseEntity<?> buscarPorId(
                         @PathVariable Integer id) {
 
-                return citaServicioService.buscarPorId(id)
-                                .map(ResponseEntity::ok)
-                                .orElseGet(() -> ResponseEntity.notFound().build());
+                try {
+                        return citaServicioService.buscarPorId(id)
+                                        .map(ResponseEntity::ok)
+                                        .orElseGet(() -> ResponseEntity.notFound().build());
+                } catch (ResponseStatusException e) {
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
+                }
         }
 
         // Listar servicios de una cita
         @GetMapping("/cita/{idCita}")
-        public ResponseEntity<List<CitaServicio>> listarPorCita(
+        public ResponseEntity<?> listarPorCita(
                         @PathVariable Integer idCita) {
 
-                return ResponseEntity.ok(
-                                citaServicioService.listarPorCita(idCita));
+                try {
+                        return ResponseEntity.ok(citaServicioService.listarPorCita(idCita));
+                } catch (ResponseStatusException e) {
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
+                }
         }
 
         // Listar citas que utilizan un servicio
         @GetMapping("/servicio/{idServicio}")
-        public ResponseEntity<List<CitaServicio>> listarPorServicio(
+        public ResponseEntity<?> listarPorServicio(
                         @PathVariable Integer idServicio) {
 
-                return ResponseEntity.ok(
-                                citaServicioService.listarPorServicio(idServicio));
+                try {
+                        return ResponseEntity.ok(citaServicioService.listarPorServicio(idServicio));
+                } catch (ResponseStatusException e) {
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
+                }
         }
 
         // Asociar un servicio a una cita
@@ -72,6 +83,10 @@ public class CitaServicioController {
 
                         return ResponseEntity.ok(nuevaRelacion);
 
+                } catch (ResponseStatusException e) {
+
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
+
                 } catch (RuntimeException e) {
 
                         return ResponseEntity.badRequest()
@@ -84,13 +99,16 @@ public class CitaServicioController {
         public ResponseEntity<?> eliminarCitaServicio(
                         @PathVariable Integer id) {
 
-                boolean eliminado = citaServicioService.eliminarCitaServicio(id);
+                try {
+                        boolean eliminado = citaServicioService.eliminarCitaServicio(id);
 
-                if (!eliminado) {
-                        return ResponseEntity.notFound().build();
+                        if (!eliminado) {
+                                return ResponseEntity.notFound().build();
+                        }
+
+                        return ResponseEntity.ok("El servicio fue eliminado de la cita correctamente.");
+                } catch (ResponseStatusException e) {
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
                 }
-
-                return ResponseEntity.ok(
-                                "El servicio fue eliminado de la cita correctamente.");
         }
 }

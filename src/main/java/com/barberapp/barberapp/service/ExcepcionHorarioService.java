@@ -6,11 +6,17 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.barberapp.barberapp.model.Barbero;
 import com.barberapp.barberapp.model.Cita;
 import com.barberapp.barberapp.model.CitaServicio;
 import com.barberapp.barberapp.model.ExcepcionHorario;
 import com.barberapp.barberapp.model.Servicio;
+import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.BarberoRepository;
 import com.barberapp.barberapp.repository.CitaRepository;
 import com.barberapp.barberapp.repository.CitaServicioRepository;
@@ -87,6 +93,7 @@ public class ExcepcionHorarioService {
                 validarDatos(excepcion);
 
                 validarBarbero(excepcion.getIdBarbero());
+                autorizarBarberoPropietario(excepcion.getIdBarbero());
 
                 String tipo = normalizarTipo(
                                 excepcion.getTipo());
@@ -114,6 +121,7 @@ public class ExcepcionHorarioService {
                 }
 
                 ExcepcionHorario excepcion = excepcionExistente.get();
+                autorizarBarberoPropietario(excepcion.getIdBarbero());
 
                 // Validar únicamente los campos
                 // que se pueden modificar
@@ -147,6 +155,7 @@ public class ExcepcionHorarioService {
                         return false;
                 }
 
+                autorizarBarberoPropietario(excepcionExistente.get().getIdBarbero());
                 excepcionHorarioRepository.deleteById(id);
 
                 return true;
@@ -248,6 +257,31 @@ public class ExcepcionHorarioService {
                         throw new RuntimeException(
                                         "El barbero indicado no existe.");
                 }
+        }
+
+        private void autorizarBarberoPropietario(Integer idBarbero) {
+                Usuario usuario = usuarioAutenticado();
+                if (!"barbero".equalsIgnoreCase(usuario.getRol())) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "Se requiere rol de barbero.");
+                }
+
+                Barbero barbero = barberoRepository.findByUsuarioId(usuario.getId())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                                "No existe un perfil de barbero para el usuario autenticado."));
+                if (!barbero.getId().equals(idBarbero)) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "No tienes permiso para modificar las excepciones de otro barbero.");
+                }
+        }
+
+        private Usuario usuarioAutenticado() {
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                if (authentication == null || !(authentication.getPrincipal() instanceof Usuario usuario)) {
+                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                                        "No hay un usuario autenticado.");
+                }
+                return usuario;
         }
 
         // NORMALIZAR Y VALIDAR TIPO

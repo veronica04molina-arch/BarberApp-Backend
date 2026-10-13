@@ -35,6 +35,7 @@ public class JwtService {
 
         return Jwts.builder()
                 .subject(usuario.getEmail())
+                .id(java.util.UUID.randomUUID().toString())
                 .claim("id", usuario.getId())
                 .claim("nombre", usuario.getNombre())
                 .claim("rol", usuario.getRol())
@@ -47,6 +48,11 @@ public class JwtService {
     public String obtenerEmail(String token) {
 
         return obtenerClaims(token).getSubject();
+    }
+
+    public String obtenerId(String token) {
+
+        return obtenerClaims(token).getId();
     }
 
     public boolean validarToken(String token) {

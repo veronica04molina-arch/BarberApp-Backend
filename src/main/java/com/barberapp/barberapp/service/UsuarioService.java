@@ -8,9 +8,15 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.model.Usuario;
+import com.barberapp.barberapp.repository.BarberoRepository;
+import com.barberapp.barberapp.repository.CitaRepository;
 import com.barberapp.barberapp.repository.UsuarioRepository;
 
 @Service
@@ -19,14 +25,21 @@ public class UsuarioService {
     private final EmailService emailService;
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final BarberoRepository barberoRepository;
+    private final CitaRepository citaRepository;
 
     public UsuarioService(
             UsuarioRepository usuarioRepository,
-            PasswordEncoder passwordEncoder, EmailService emailService) {
+            PasswordEncoder passwordEncoder,
+            EmailService emailService,
+            BarberoRepository barberoRepository,
+            CitaRepository citaRepository) {
 
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
+        this.barberoRepository = barberoRepository;
+        this.citaRepository = citaRepository;
     }
 
     // Normaliza el nombre del usuario.
@@ -133,10 +146,11 @@ public class UsuarioService {
     }
 
     public List<Usuario> listarUsuarios() {
-        return usuarioRepository.findAll();
+        return List.of(usuarioAutenticado());
     }
 
     public Usuario buscarUsuarioPorId(Integer id) {
+        autorizarLecturaUsuario(id);
         return usuarioRepository.findById(id).orElse(null);
     }
 
@@ -146,6 +160,8 @@ public class UsuarioService {
     public Usuario actualizarTelefono(
             Integer id,
             String telefono) {
+
+        autorizarUsuario(id);
 
         Usuario usuarioExistente = usuarioRepository.findById(id).orElse(null);
 
@@ -302,4 +318,46 @@ private Usuario buscarPorIdentificador(String identificador) {
         return null;
     }
 }
+
+    private Usuario usuarioAutenticado() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof Usuario usuario)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No hay un usuario autenticado.");
+        }
+        return usuario;
+    }
+
+    private void autorizarUsuario(Integer idUsuario) {
+        if (idUsuario == null || !usuarioAutenticado().getId().equals(idUsuario)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "No tienes permiso para acceder a este usuario.");
+        }
+    }
+
+    private void autorizarLecturaUsuario(Integer idUsuario) {
+        Usuario usuarioAutenticado = usuarioAutenticado();
+
+        if (idUsuario == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "No tienes permiso para acceder a este usuario.");
+        }
+
+        if ("cliente".equalsIgnoreCase(usuarioAutenticado.getRol())) {
+            autorizarUsuario(idUsuario);
+            return;
+        }
+
+        if ("barbero".equalsIgnoreCase(usuarioAutenticado.getRol())) {
+            boolean tieneCitaConElCliente = barberoRepository.findByUsuarioId(usuarioAutenticado.getId())
+                    .map(barbero -> citaRepository.existsByIdUsuarioAndIdBarbero(idUsuario, barbero.getId()))
+                    .orElse(false);
+
+            if (tieneCitaConElCliente) {
+                return;
+            }
+        }
+
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "No tienes permiso para acceder a este usuario.");
+    }
 }

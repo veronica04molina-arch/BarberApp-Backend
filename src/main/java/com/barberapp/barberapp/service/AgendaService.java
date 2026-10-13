@@ -5,6 +5,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.dto.AgendaCitaDTO;
 import com.barberapp.barberapp.model.Cita;
@@ -48,6 +52,7 @@ public class AgendaService {
                         throw new RuntimeException(
                                         "El barbero con ID " + idBarbero + " no existe");
                 }
+                autorizarBarberoPropietario(idBarbero);
 
                 // Obtener la fecha actual
                 LocalDate hoy = LocalDate.now();
@@ -104,5 +109,19 @@ public class AgendaService {
                 }
 
                 return agenda;
+        }
+
+        private void autorizarBarberoPropietario(Integer idBarbero) {
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                if (authentication == null || !(authentication.getPrincipal() instanceof Usuario usuario)) {
+                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No hay un usuario autenticado.");
+                }
+                boolean esPropietario = barberoRepository.findByUsuarioId(usuario.getId())
+                                .map(barbero -> barbero.getId().equals(idBarbero))
+                                .orElse(false);
+                if (!"barbero".equalsIgnoreCase(usuario.getRol()) || !esPropietario) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "No tienes permiso para consultar la agenda de otro barbero.");
+                }
         }
 }

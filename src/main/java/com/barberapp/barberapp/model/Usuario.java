@@ -2,6 +2,7 @@ package com.barberapp.barberapp.model;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Column;
@@ -97,8 +98,12 @@ public class Usuario {
         this.fechaRegistro = fechaRegistro;
     }
 
-    // Dentro de tu clase Usuario:
+    // Los tokens solo se usan internamente durante el restablecimiento de contraseña.
+    // Nunca deben formar parte de una representación JSON de un usuario.
+    @JsonIgnore
 private String resetToken;
+
+    @JsonIgnore
 private LocalDateTime resetTokenExpiration;
 
 // Getters y Setters:

@@ -4,8 +4,13 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.model.Barbero;
+import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.BarberoRepository;
 import com.barberapp.barberapp.repository.UsuarioRepository;
 
@@ -40,6 +45,7 @@ public Barbero guardarBarbero(Barbero barbero) {
     }
 
     Integer idUsuario = barbero.getUsuario().getId();
+    autorizarUsuarioBarbero(idUsuario);
 
     Optional<com.barberapp.barberapp.model.Usuario> usuarioOptional =
             usuarioRepository.findById(idUsuario);
@@ -79,6 +85,7 @@ public Barbero guardarBarbero(Barbero barbero) {
     if (barberoExistente.isPresent()) {
 
         Barbero barbero = barberoExistente.get();
+        autorizarBarberoPropietario(barbero);
 
         barbero.setEspecialidad(datosBarbero.getEspecialidad());
         barbero.setExperiencia(datosBarbero.getExperiencia());
@@ -100,10 +107,37 @@ public Barbero guardarBarbero(Barbero barbero) {
     }
 
     Barbero barbero = barberoExistente.get();
+    autorizarBarberoPropietario(barbero);
     barbero.setEstado("inactivo");
 
     barberoRepository.save(barbero);
 
     return true;
 }
+
+    private void autorizarUsuarioBarbero(Integer idUsuario) {
+        if (!usuarioAutenticado().getId().equals(idUsuario)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Solo puedes crear tu propio perfil de barbero.");
+        }
+    }
+
+    private void autorizarBarberoPropietario(Barbero barbero) {
+        if (barbero.getUsuario() == null || barbero.getUsuario().getId() == null
+                || !usuarioAutenticado().getId().equals(barbero.getUsuario().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "No tienes permiso para modificar este barbero.");
+        }
+    }
+
+    private Usuario usuarioAutenticado() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof Usuario usuario)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No hay un usuario autenticado.");
+        }
+        if (!"barbero".equalsIgnoreCase(usuario.getRol())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Se requiere rol de barbero.");
+        }
+        return usuario;
+    }
 }

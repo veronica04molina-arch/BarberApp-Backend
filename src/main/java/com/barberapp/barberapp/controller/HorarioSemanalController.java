@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.model.HorarioSemanal;
 import com.barberapp.barberapp.service.HorarioSemanalService;
@@ -57,6 +58,10 @@ public class HorarioSemanalController {
                                         horarioSemanalService
                                                         .listarPorBarbero(idBarbero));
 
+                } catch (ResponseStatusException e) {
+
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
+
                 } catch (RuntimeException e) {
 
                         return ResponseEntity.badRequest()
@@ -77,6 +82,10 @@ public class HorarioSemanalController {
                                                         .listarPorBarberoYDia(
                                                                         idBarbero,
                                                                         diaSemana));
+
+                } catch (ResponseStatusException e) {
+
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
 
                 } catch (RuntimeException e) {
 
@@ -118,6 +127,10 @@ public class HorarioSemanalController {
 
                         return ResponseEntity.ok(nuevoHorario);
 
+                } catch (ResponseStatusException e) {
+
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
+
                 } catch (RuntimeException e) {
 
                         return ResponseEntity.badRequest()
@@ -147,6 +160,10 @@ public class HorarioSemanalController {
 
                         return ResponseEntity.ok(
                                         horarioActualizado);
+
+                } catch (ResponseStatusException e) {
+
+                        return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
 
                 } catch (RuntimeException e) {
 
