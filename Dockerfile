@@ -15,6 +15,6 @@ ENV JAVA_TOOL_OPTIONS="-Duser.timezone=America/Bogota"
 
 COPY --from=build /tmp/app.jar app.jar
 
-EXPOSE 8081
+EXPOSE 10000
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
