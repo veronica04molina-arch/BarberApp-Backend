@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.model.Sesion;
@@ -93,6 +94,12 @@ public class SesionService {
         sesion.setEstado("cerrada");
 
         sesionRepository.save(sesion);
+    }
+
+    /** Revoca todos los JWT registrados para el usuario. */
+    @Transactional
+    public void cerrarSesionesActivasPorUsuario(Integer idUsuario) {
+        sesionRepository.cerrarSesionesActivasPorUsuario(idUsuario);
     }
 
     private String hashToken(String token) {

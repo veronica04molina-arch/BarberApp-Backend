@@ -1,33 +1,66 @@
 package com.barberapp.barberapp.service;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.stereotype.Service;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.util.HtmlUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class EmailService {
 
-  private final JavaMailSender mailSender;
+  private static final Logger logger =
+        LoggerFactory.getLogger(EmailService.class);
+
+  private final RestClient restClient;
+  private final String brevoApiKey;
+  private final String senderEmail;
   private final String frontendUrl;
+  private final String backendPublicUrl;
 
   public EmailService(
-      JavaMailSender mailSender,
-      @Value("${FRONTEND_URL:http://localhost:4200}") String frontendUrl) {
-    this.mailSender = mailSender;
-    this.frontendUrl = frontendUrl;
+      @Value("${BREVO_API_KEY:}") String brevoApiKey,
+      @Value("${BREVO_SENDER_EMAIL:}") String senderEmail,
+      @Value("${FRONTEND_URL:http://localhost:4200}") String frontendUrl,
+      @Value("${BACKEND_PUBLIC_URL:http://localhost:8081}") String backendPublicUrl) {
+
+    this.restClient = RestClient.builder()
+        .baseUrl("https://api.brevo.com/v3")
+        .build();
+
+    this.brevoApiKey = brevoApiKey;
+    this.senderEmail = senderEmail;
+    this.frontendUrl = frontendUrl.replaceAll("/+$", "");
+    this.backendPublicUrl = backendPublicUrl.replaceAll("/+$", "");
   }
 
   public void enviarCorreoRecuperacion(String destinatario, String token) {
 
-    String urlRecuperacion = frontendUrl + "/restablecer-password?token="
-        + token
+    if (brevoApiKey.isBlank() || senderEmail.isBlank()) {
+      throw new IllegalStateException(
+          "Falta configurar BREVO_API_KEY o BREVO_SENDER_EMAIL.");
+    }
+
+    String emailCodificado = URLEncoder.encode(
+        destinatario, StandardCharsets.UTF_8);
+
+    String tokenCodificado = URLEncoder.encode(
+        token, StandardCharsets.UTF_8);
+
+    String urlRecuperacion = frontendUrl
+        + "/restablecer-password?token="
+        + tokenCodificado
         + "&email="
-        + destinatario;
+        + emailCodificado;
 
     String contenidoHtml = """
         <!DOCTYPE html>
@@ -47,12 +80,12 @@ public class EmailService {
                 <table role="presentation" width="100%%" border="0" cellspacing="0" cellpadding="0"
                        style="max-width: 520px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(16, 41, 109, 0.08); border: 1px solid #e8ecf5;">
 
-                  <!-- HEADER -->
+                  <!-- ENCABEZADO -->
                   <tr>
                     <td align="center" style="background-color: #10296d; padding: 36px 20px; text-align: center;">
 
                       <div style="display: inline-block; background-color: #1f3fbf; padding: 14px; border-radius: 16px;">
-                        <img src="cid:barberapp-logo"
+                        <img src="%s/images/barberapp-logo.png"
                              alt="BarberApp Logo"
                              width="42"
                              height="42"
@@ -153,33 +186,52 @@ public class EmailService {
         </html>
         """
         .formatted(
-            destinatario,
+            backendPublicUrl,
+            HtmlUtils.htmlEscape(destinatario),
             urlRecuperacion,
             token,
             urlRecuperacion,
             urlRecuperacion);
 
+    Map<String, Object> solicitud = Map.of(
+        "sender", Map.of(
+            "name", "BarberApp",
+            "email", senderEmail),
+        "to", List.of(
+            Map.of("email", destinatario)),
+        "subject", "Restablecer tu contraseña - BarberApp",
+        "htmlContent", contenidoHtml);
+
     try {
-      MimeMessage message = mailSender.createMimeMessage();
+      restClient.post()
+          .uri("/smtp/email")
+          .header("api-key", brevoApiKey)
+          .contentType(MediaType.APPLICATION_JSON)
+          .accept(MediaType.APPLICATION_JSON)
+          .body(solicitud)
+          .retrieve()
+          .toBodilessEntity();
 
-      MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+    } catch (RestClientResponseException e) {
 
-      helper.setTo(destinatario);
-      helper.setSubject("🔒 Restablecer tu contraseña - BarberApp");
-      helper.setText(contenidoHtml, true);
+      logger.error(
+          "Brevo rechazó el envío. HTTP {}. Respuesta: {}",
+          e.getStatusCode(),
+          e.getResponseBodyAsString());
 
-      // Cargar el logo desde resources/images
-      ClassPathResource logo = new ClassPathResource("images/barberapp-logo.png");
-
-      // Insertar el logo dentro del correo
-      helper.addInline("barberapp-logo", logo, "image/png");
-
-      mailSender.send(message);
-
-    } catch (MessagingException e) {
       throw new RuntimeException(
-          "Error al enviar el correo de recuperación: "
-              + e.getMessage());
+          "No se pudo enviar el correo de recuperación mediante Brevo.",
+          e);
+
+    } catch (RestClientException e) {
+
+      logger.error(
+          "Error de conexión con la API de Brevo.",
+          e);
+
+      throw new RuntimeException(
+          "No se pudo enviar el correo de recuperación mediante Brevo.",
+          e);
     }
   }
 }

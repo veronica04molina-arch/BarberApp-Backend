@@ -77,11 +77,13 @@ public class UsuarioController {
     @PostMapping("/olvide-password")
     public ResponseEntity<?> solicitarRecuperacion(@RequestBody SolicitarRecuperacionDTO dto) {
         try {
-            usuarioService.generarTokenRecuperacion(dto.getEmail());
-            return ResponseEntity.ok(Map.of("message", "Instrucciones enviadas con éxito."));
+            usuarioService.generarTokenRecuperacion(dto != null ? dto.getEmail() : null);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            // La respuesta no revela si el correo existe ni si falló el envío.
         }
+
+        return ResponseEntity.ok(Map.of("message",
+                "Si el correo está registrado, recibirás instrucciones para restablecer tu contraseña."));
     }
 
     @PostMapping("/restablecer-password")

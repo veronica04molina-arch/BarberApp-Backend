@@ -228,6 +228,8 @@ public class SecurityConfig {
 
                                                 .requestMatchers("/reportes/**").hasRole("BARBERO")
 
+                                                .requestMatchers("/images/**").permitAll()
+
                                                 .anyRequest().authenticated())
 
                                 .addFilterBefore(

@@ -2,7 +2,11 @@ package com.barberapp.barberapp.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -11,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -27,19 +32,22 @@ public class UsuarioService {
     private final PasswordEncoder passwordEncoder;
     private final BarberoRepository barberoRepository;
     private final CitaRepository citaRepository;
+    private final SesionService sesionService;
 
     public UsuarioService(
             UsuarioRepository usuarioRepository,
             PasswordEncoder passwordEncoder,
             EmailService emailService,
             BarberoRepository barberoRepository,
-            CitaRepository citaRepository) {
+            CitaRepository citaRepository,
+            SesionService sesionService) {
 
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.barberoRepository = barberoRepository;
         this.citaRepository = citaRepository;
+        this.sesionService = sesionService;
     }
 
     // Normaliza el nombre del usuario.
@@ -211,20 +219,20 @@ public class UsuarioService {
      * Genera un token de recuperación para el usuario y establece una expiración de
      * 15 minutos.
      */
-    public String generarTokenRecuperacion(String email) {
+    public void generarTokenRecuperacion(String email) {
         if (email == null || email.trim().isEmpty()) {
-            throw new RuntimeException("El correo electrónico es obligatorio.");
+            return;
         }
 
         Usuario usuario = usuarioRepository.findByEmailIgnoreCase(email.trim());
 
         if (usuario == null) {
-            throw new RuntimeException("El correo ingresado no está registrado.");
+            return;
         }
 
         // Generar token
         String token = UUID.randomUUID().toString();
-        usuario.setResetToken(token);
+        usuario.setResetToken(hashTokenRecuperacion(token));
         usuario.setResetTokenExpiration(LocalDateTime.now().plusMinutes(15));
 
         usuarioRepository.save(usuario);
@@ -232,16 +240,20 @@ public class UsuarioService {
         // 2. Enviar el correo electrónico
         emailService.enviarCorreoRecuperacion(usuario.getEmail(), token);
 
-        return token;
     }
 
     /**
      * Valida el token/correo y actualiza la contraseña en la base de datos con
      * BCrypt.
      */
+    @Transactional
     public void restablecerPassword(String email, String token, String nuevaPassword) {
         if (nuevaPassword == null || nuevaPassword.length() < 6) {
             throw new RuntimeException("La nueva contraseña debe tener al menos 6 caracteres.");
+        }
+
+        if (email == null || token == null || token.isBlank()) {
+            throw new RuntimeException("El código o token de recuperación es inválido.");
         }
 
         Usuario usuario = usuarioRepository.findByEmailIgnoreCase(email.trim());
@@ -251,7 +263,9 @@ public class UsuarioService {
         }
 
         // Validar token y tiempo de expiración
-        if (usuario.getResetToken() == null || !usuario.getResetToken().equals(token)) {
+        if (usuario.getResetToken() == null || !MessageDigest.isEqual(
+                usuario.getResetToken().getBytes(StandardCharsets.UTF_8),
+                hashTokenRecuperacion(token).getBytes(StandardCharsets.UTF_8))) {
             throw new RuntimeException("El código o token de recuperación es inválido.");
         }
 
@@ -268,11 +282,13 @@ public class UsuarioService {
         usuario.setResetTokenExpiration(null);
 
         usuarioRepository.save(usuario);
+        sesionService.cerrarSesionesActivasPorUsuario(usuario.getId());
     }
 
     /**
      * Cambia la contraseña del usuario autenticado.
      */
+    @Transactional
     public void cambiarPassword(String identificador, String nuevaPassword) {
 
     if (nuevaPassword == null || nuevaPassword.trim().length() < 8) {
@@ -296,6 +312,17 @@ public class UsuarioService {
     usuario.setResetTokenExpiration(null);
 
     usuarioRepository.save(usuario);
+    sesionService.cerrarSesionesActivasPorUsuario(usuario.getId());
+}
+
+private String hashTokenRecuperacion(String token) {
+    try {
+        byte[] hash = MessageDigest.getInstance("SHA-256")
+                .digest(token.getBytes(StandardCharsets.UTF_8));
+        return HexFormat.of().formatHex(hash);
+    } catch (NoSuchAlgorithmException e) {
+        throw new IllegalStateException("No está disponible SHA-256.", e);
+    }
 }
 
 private Usuario buscarPorIdentificador(String identificador) {

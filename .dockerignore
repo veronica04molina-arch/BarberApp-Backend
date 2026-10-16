@@ -3,3 +3,4 @@ target/
 .idea/
 application-local.properties
 .env
+src/main/resources/application-local.properties

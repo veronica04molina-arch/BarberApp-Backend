@@ -1,6 +1,7 @@
 package com.barberapp.barberapp.integration;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,6 +12,19 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class UsuarioAuthorizationIntegrationTest extends AuthorizationIntegrationTestSupport {
+
+    @Test
+    void unUsuarioPuedeIniciarSesionConCredencialesValidas() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                .contentType(jsonMediaType())
+                .content(json(Map.of(
+                        "email", clienteA.getEmail(),
+                        "password", "password-seguro"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.id").value(clienteA.getId()))
+                .andExpect(jsonPath("$.rol").value("cliente"));
+    }
 
     @Test
     void unClienteNoPuedeLeerNiEditarAOtroCliente() throws Exception {
