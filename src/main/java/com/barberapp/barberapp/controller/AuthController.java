@@ -1,6 +1,5 @@
 package com.barberapp.barberapp.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,20 +27,22 @@ public class AuthController {
         private final JwtService jwtService;
         private final SesionService sesionService;
 
-        @Autowired
-        private GoogleAuthService googleAuthService;
+        private final GoogleAuthService googleAuthService;
 
-        @Autowired
-        private UsuarioRepository usuarioRepository;
+        private final UsuarioRepository usuarioRepository;
 
         public AuthController(
                         UsuarioService usuarioService,
                         JwtService jwtService,
-                        SesionService sesionService) {
+                        SesionService sesionService,
+                        GoogleAuthService googleAuthService,
+                        UsuarioRepository usuarioRepository) {
 
                 this.usuarioService = usuarioService;
                 this.jwtService = jwtService;
                 this.sesionService = sesionService;
+                this.googleAuthService = googleAuthService;
+                this.usuarioRepository = usuarioRepository;
         }
 
         @PostMapping("/login")
@@ -136,9 +137,8 @@ public class AuthController {
                                                 .body("Ya existe una cuenta registrada con ese correo.");
                         }
 
-                        String nombre = (request.getNombre() != null && !request.getNombre().isBlank())
-                                        ? request.getNombre()
-                                        : googleUser.getNombre();
+                        // El nombre siempre proviene del token de Google que acabamos de verificar.
+                        String nombre = googleUser.getNombre();
 
                         Usuario nuevoUsuario = new Usuario();
 
@@ -147,7 +147,7 @@ public class AuthController {
                         nuevoUsuario.setTelefono(request.getTelefono());
                         nuevoUsuario.setPassword(request.getPassword());
 
-                        Usuario usuarioRegistrado = usuarioService.guardarUsuario(nuevoUsuario);
+                        Usuario usuarioRegistrado = usuarioService.guardarUsuarioConGoogle(nuevoUsuario);
 
                         // Generar JWT de BarberApp
                         String token = jwtService.generarToken(usuarioRegistrado);

@@ -65,6 +65,21 @@ public class UsuarioService {
 
     public Usuario guardarUsuario(Usuario usuario) {
 
+        return guardarUsuario(usuario, true);
+    }
+
+    /**
+     * Guarda un usuario creado desde una identidad de Google ya verificada.
+     * Conserva las mismas validaciones del registro público, excepto que el
+     * nombre puede estar compuesto por una sola palabra.
+     */
+    public Usuario guardarUsuarioConGoogle(Usuario usuario) {
+
+        return guardarUsuario(usuario, false);
+    }
+
+    private Usuario guardarUsuario(Usuario usuario, boolean exigirApellido) {
+
         // Validar que los datos del usuario existan.
         if (usuario == null) {
             throw new RuntimeException(
@@ -85,7 +100,7 @@ public class UsuarioService {
         // nombre + al menos un apellido.
         String[] partesNombre = nombre.split("\\s+");
 
-        if (partesNombre.length < 2) {
+        if (exigirApellido && partesNombre.length < 2) {
             throw new RuntimeException(
                     "Debes ingresar tu nombre y al menos un apellido.");
         }
