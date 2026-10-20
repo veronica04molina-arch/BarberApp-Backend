@@ -202,6 +202,17 @@ public class CitaController {
         }
     }
 
+    @GetMapping("/{id}/completar/elegibilidad")
+    public ResponseEntity<?> obtenerElegibilidadCompletar(@PathVariable Integer id) {
+        try {
+            return citaService.obtenerElegibilidadCompletar(id)
+                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.notFound().build());
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
+        }
+    }
+
     @GetMapping("/usuario/{idUsuario}/proxima")
     public ResponseEntity<?> obtenerProximaCita(
             @PathVariable Integer idUsuario) {

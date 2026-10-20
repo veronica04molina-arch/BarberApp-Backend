@@ -3,6 +3,7 @@ package com.barberapp.barberapp.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.dto.CitaClienteDTO;
 import com.barberapp.barberapp.dto.CitaRequest;
+import com.barberapp.barberapp.dto.ElegibilidadCompletarCitaDTO;
 import com.barberapp.barberapp.model.Barbero;
 import com.barberapp.barberapp.model.Cita;
 import com.barberapp.barberapp.model.CitaServicio;
@@ -31,6 +33,8 @@ import com.barberapp.barberapp.repository.UsuarioRepository;
 
 @Service
 public class CitaService {
+
+        private static final ZoneId ZONA_HORARIA_PROYECTO = ZoneId.of("America/Bogota");
 
         private final CitaRepository citaRepository;
         private final UsuarioRepository usuarioRepository;
@@ -427,11 +431,9 @@ public class CitaService {
                         Integer idUsuario) {
 
                 Optional<Cita> citaExistente = citaRepository.findById(id);
-
                 if (citaExistente.isEmpty()) {
                         return false;
                 }
-
                 Cita cita = citaExistente.get();
 
                 Usuario autenticado = usuarioAutenticado();
@@ -497,37 +499,23 @@ public class CitaService {
 
                 Cita cita = citaExistente.get();
 
-                // Verificar que el usuario autenticado sea barbero
                 Usuario autenticado = usuarioAutenticado();
-
                 if (!esBarbero(autenticado)) {
                         throw new ResponseStatusException(
                                         HttpStatus.FORBIDDEN,
                                         "Solo un barbero puede marcar una cita como completada.");
                 }
 
-                // Obtener el barbero correspondiente al usuario autenticado
                 Integer idBarbero = idBarberoAutenticado();
-
-                // Verificar que la cita pertenezca a este barbero
                 if (!idBarbero.equals(cita.getIdBarbero())) {
                         throw new ResponseStatusException(
                                         HttpStatus.FORBIDDEN,
                                         "No puedes completar una cita asignada a otro barbero.");
                 }
 
-                // Verificar que la cita no esté cancelada
-                if ("cancelada".equalsIgnoreCase(cita.getEstado())) {
-                        throw new ResponseStatusException(
-                                        HttpStatus.BAD_REQUEST,
-                                        "No se puede completar una cita cancelada.");
-                }
-
-                // Verificar que no esté ya completada
-                if ("completada".equalsIgnoreCase(cita.getEstado())) {
-                        throw new ResponseStatusException(
-                                        HttpStatus.BAD_REQUEST,
-                                        "La cita ya se encuentra completada.");
+                String motivo = motivoNoCompletado(cita);
+                if (motivo != null) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, motivo);
                 }
 
                 // Cambiar el estado
@@ -544,6 +532,30 @@ public class CitaService {
                                                 + " ha sido completada.");
 
                 return true;
+        }
+
+        public Optional<ElegibilidadCompletarCitaDTO> obtenerElegibilidadCompletar(Integer id) {
+                Optional<Cita> citaExistente = citaRepository.findById(id);
+                if (citaExistente.isEmpty()) {
+                        return Optional.empty();
+                }
+
+                Cita cita = citaExistente.get();
+                Usuario autenticado = usuarioAutenticado();
+                if (!esBarbero(autenticado)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Solo un barbero puede consultar si una cita puede completarse.");
+                }
+
+                if (!idBarberoAutenticado().equals(cita.getIdBarbero())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "No puedes consultar una cita asignada a otro barbero.");
+                }
+
+                String motivo = motivoNoCompletado(cita);
+                return Optional.of(new ElegibilidadCompletarCitaDTO(motivo == null, motivo));
         }
 
         public Optional<CitaClienteDTO> obtenerProximaCita(Integer idUsuario) {
@@ -704,6 +716,27 @@ public class CitaService {
 
                 cita.setEstado("confirmada");
                 citaRepository.save(cita);
+        }
+
+        private String motivoNoCompletado(Cita cita) {
+                if ("pendiente".equalsIgnoreCase(cita.getEstado())) {
+                        return "No se puede completar una cita pendiente. Debe estar confirmada.";
+                }
+                if ("cancelada".equalsIgnoreCase(cita.getEstado())) {
+                        return "No se puede completar una cita cancelada.";
+                }
+                if ("completada".equalsIgnoreCase(cita.getEstado())) {
+                        return "La cita ya se encuentra completada.";
+                }
+                if (!"confirmada".equalsIgnoreCase(cita.getEstado())) {
+                        return "La cita no está en un estado válido para completarse.";
+                }
+
+                LocalDateTime fechaHoraProgramada = LocalDateTime.of(cita.getFecha(), cita.getHora());
+                if (fechaHoraProgramada.isAfter(LocalDateTime.now(ZONA_HORARIA_PROYECTO))) {
+                        return "No se puede completar una cita antes de su fecha y hora programadas.";
+                }
+                return null;
         }
 
         // Validar los servicios seleccionados.
