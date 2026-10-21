@@ -732,9 +732,15 @@ public class CitaService {
                         return "La cita no está en un estado válido para completarse.";
                 }
 
-                LocalDateTime fechaHoraProgramada = LocalDateTime.of(cita.getFecha(), cita.getHora());
-                if (fechaHoraProgramada.isAfter(LocalDateTime.now(ZONA_HORARIA_PROYECTO))) {
-                        return "No se puede completar una cita antes de su fecha y hora programadas.";
+                int duracionCita = calcularDuracionCita(cita.getId());
+                if (duracionCita <= 0) {
+                        return "No se puede completar la cita porque no tiene una duración de servicio válida.";
+                }
+
+                LocalDateTime fechaHoraFinProgramada = LocalDateTime.of(cita.getFecha(), cita.getHora())
+                                .plusMinutes(duracionCita);
+                if (fechaHoraFinProgramada.isAfter(LocalDateTime.now(ZONA_HORARIA_PROYECTO))) {
+                        return "No se puede completar la cita hasta que haya transcurrido la duración programada del servicio.";
                 }
                 return null;
         }
@@ -917,7 +923,6 @@ public class CitaService {
                 int total = 0;
 
                 for (CitaServicio relacion : citaServicioRepository.findByIdCita(idCita)) {
-
                         Servicio servicio = servicioRepository
                                         .findById(relacion.getIdServicio())
                                         .orElse(null);

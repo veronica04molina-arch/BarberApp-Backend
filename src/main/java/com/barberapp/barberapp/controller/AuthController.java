@@ -49,34 +49,45 @@ public class AuthController {
         public ResponseEntity<?> login(
                         @RequestBody LoginRequest request) {
 
-                Usuario usuario = new Usuario();
+                try {
 
-                usuario.setEmail(request.getEmail());
-                usuario.setPassword(request.getPassword());
+                        Usuario usuario = new Usuario();
 
-                Usuario usuarioAutenticado = usuarioService.iniciarSesion(usuario);
+                        usuario.setEmail(request.getEmail());
+                        usuario.setPassword(request.getPassword());
 
-                if (usuarioAutenticado == null) {
+                        Usuario usuarioAutenticado = usuarioService.iniciarSesion(usuario);
 
+                        if (usuarioAutenticado == null) {
+
+                                return ResponseEntity
+                                                .status(401)
+                                                .body("Correo o contraseña incorrectos");
+                        }
+
+                        String token = jwtService.generarToken(usuarioAutenticado);
+
+                        sesionService.registrarSesion(
+                                        usuarioAutenticado.getId(),
+                                        token);
+
+                        LoginResponse response = new LoginResponse(
+                                        token,
+                                        usuarioAutenticado.getId(),
+                                        usuarioAutenticado.getNombre(),
+                                        usuarioAutenticado.getEmail(),
+                                        usuarioAutenticado.getRol());
+
+                        return ResponseEntity.ok(response);
+
+                } catch (RuntimeException e) {
+
+                        // Por ejemplo: contraseña que supera la longitud máxima
+                        // permitida. Se rechaza sin truncar ni modificar el valor.
                         return ResponseEntity
-                                        .status(401)
-                                        .body("Correo o contraseña incorrectos");
+                                        .badRequest()
+                                        .body(e.getMessage());
                 }
-
-                String token = jwtService.generarToken(usuarioAutenticado);
-
-                sesionService.registrarSesion(
-                                usuarioAutenticado.getId(),
-                                token);
-
-                LoginResponse response = new LoginResponse(
-                                token,
-                                usuarioAutenticado.getId(),
-                                usuarioAutenticado.getNombre(),
-                                usuarioAutenticado.getEmail(),
-                                usuarioAutenticado.getRol());
-
-                return ResponseEntity.ok(response);
         }
 
         // verificar los datos de Google

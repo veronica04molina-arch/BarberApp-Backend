@@ -3,6 +3,7 @@ package com.barberapp.barberapp.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -99,6 +100,68 @@ class UsuarioServicePasswordRecoveryTest {
 
         assertFalse("bcrypt-anterior".equals(usuario.getPassword()));
         verify(sesionService).cerrarSesionesActivasPorUsuario(usuario.getId());
+    }
+
+    @Test
+    void restablecerPasswordRechazaPasswordDeMasDe20Caracteres() {
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> usuarioService.restablecerPassword(
+                        "cliente@ejemplo.com", "token", "a".repeat(21)));
+
+        assertEquals("La contraseña no puede superar los 20 caracteres.", exception.getMessage());
+    }
+
+    @Test
+    void cambiarPasswordRechazaPasswordDeMasDe20Caracteres() {
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> usuarioService.cambiarPassword("cliente@ejemplo.com", "a".repeat(21)));
+
+        assertEquals("La contraseña no puede superar los 20 caracteres.", exception.getMessage());
+    }
+
+    @Test
+    void restablecerPasswordConservaLosEspaciosAlCodificar() {
+        String token = "token-de-recuperacion";
+        String password = " nueva-clave ";
+        Usuario usuario = usuario(7, "cliente@ejemplo.com");
+        usuario.setResetToken(sha256(token));
+        usuario.setResetTokenExpiration(LocalDateTime.now().plusMinutes(10));
+        when(usuarioRepository.findByEmailIgnoreCase(usuario.getEmail())).thenReturn(usuario);
+        when(passwordEncoder.encode(password)).thenReturn("bcrypt-con-espacios");
+
+        usuarioService.restablecerPassword(usuario.getEmail(), token, password);
+
+        assertEquals("bcrypt-con-espacios", usuario.getPassword());
+        verify(passwordEncoder).encode(password);
+    }
+
+    @Test
+    void cambiarPasswordConservaLosEspaciosAlCodificar() {
+        String password = " nueva-clave ";
+        Usuario usuario = usuario(7, "cliente@ejemplo.com");
+        usuario.setPassword("bcrypt-anterior");
+        when(usuarioRepository.findByEmailIgnoreCase(usuario.getEmail())).thenReturn(usuario);
+        when(passwordEncoder.matches(password, "bcrypt-anterior")).thenReturn(false);
+        when(passwordEncoder.encode(password)).thenReturn("bcrypt-con-espacios");
+
+        usuarioService.cambiarPassword(usuario.getEmail(), password);
+
+        assertEquals("bcrypt-con-espacios", usuario.getPassword());
+        verify(passwordEncoder).encode(password);
+    }
+
+    @Test
+    void cambiarPasswordAceptaExactamente20Caracteres() {
+        String password = "a".repeat(20);
+        Usuario usuario = usuario(7, "cliente@ejemplo.com");
+        usuario.setPassword("bcrypt-anterior");
+        when(usuarioRepository.findByEmailIgnoreCase(usuario.getEmail())).thenReturn(usuario);
+        when(passwordEncoder.matches(password, "bcrypt-anterior")).thenReturn(false);
+        when(passwordEncoder.encode(password)).thenReturn("bcrypt-20");
+
+        usuarioService.cambiarPassword(usuario.getEmail(), password);
+
+        assertEquals("bcrypt-20", usuario.getPassword());
     }
 
     private Usuario usuario(Integer id, String email) {

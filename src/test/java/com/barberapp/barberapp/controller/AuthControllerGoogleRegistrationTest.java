@@ -60,4 +60,23 @@ class AuthControllerGoogleRegistrationTest {
         assertEquals("luis@ejemplo.com", usuario.getValue().getEmail());
         assertEquals(200, response.getStatusCode().value());
     }
+
+    @Test
+    void registroGoogleRechazaPasswordDeMasDe20Caracteres() throws Exception {
+        GoogleRegisterRequest request = new GoogleRegisterRequest();
+        request.setToken("token-de-google");
+        request.setTelefono("3001234567");
+        request.setPassword("a".repeat(21));
+
+        GoogleUser googleUser = new GoogleUser("Luis", "luis@ejemplo.com");
+        when(googleAuthService.verificarToken("token-de-google")).thenReturn(googleUser);
+        when(usuarioRepository.existsByEmailIgnoreCase("luis@ejemplo.com")).thenReturn(false);
+        when(usuarioService.guardarUsuarioConGoogle(any(Usuario.class)))
+                .thenThrow(new RuntimeException("La contraseña no puede superar los 20 caracteres."));
+
+        ResponseEntity<?> response = authController.registrarConGoogle(request);
+
+        assertEquals(400, response.getStatusCode().value());
+        assertEquals("La contraseña no puede superar los 20 caracteres.", response.getBody());
+    }
 }

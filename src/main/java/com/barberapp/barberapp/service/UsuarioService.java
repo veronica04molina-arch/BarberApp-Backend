@@ -27,6 +27,8 @@ import com.barberapp.barberapp.repository.UsuarioRepository;
 @Service
 public class UsuarioService {
 
+    private static final int MAX_LONGITUD_PASSWORD = 20;
+
     private final EmailService emailService;
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
@@ -150,6 +152,9 @@ public class UsuarioService {
                     "La contraseña debe tener al menos 6 caracteres.");
         }
 
+        // Validar longitud máxima de la contraseña.
+        validarLongitudMaximaPassword(usuario.getPassword());
+
         // Normalizar datos.
         usuario.setNombre(nombre);
         usuario.setEmail(email);
@@ -216,6 +221,16 @@ public class UsuarioService {
             return null;
         }
 
+        // Rechazar de forma explícita las contraseñas que superen el límite.
+        // No se trunca la contraseña: el frontend y el backend interpretan el
+        // mismo valor y la autenticación nunca usará un valor recortado.
+        if (usuario.getPassword().length() > MAX_LONGITUD_PASSWORD) {
+
+            throw new RuntimeException(
+                    "La contraseña no puede superar los "
+                            + MAX_LONGITUD_PASSWORD + " caracteres.");
+        }
+
         Usuario usuarioEncontrado = usuarioRepository.findByEmailIgnoreCase(
                 usuario.getEmail().trim());
 
@@ -228,6 +243,19 @@ public class UsuarioService {
         }
 
         return usuarioEncontrado;
+    }
+
+    /**
+     * Rechaza contraseñas que superen el máximo permitido.
+     */
+    private void validarLongitudMaximaPassword(String password) {
+
+        if (password != null && password.length() > MAX_LONGITUD_PASSWORD) {
+
+            throw new RuntimeException(
+                    "La contraseña no puede superar los "
+                            + MAX_LONGITUD_PASSWORD + " caracteres.");
+        }
     }
 
     /**
@@ -267,6 +295,9 @@ public class UsuarioService {
             throw new RuntimeException("La nueva contraseña debe tener al menos 6 caracteres.");
         }
 
+        // Validar longitud máxima de la contraseña (sobre el valor original).
+        validarLongitudMaximaPassword(nuevaPassword);
+
         if (email == null || token == null || token.isBlank()) {
             throw new RuntimeException("El código o token de recuperación es inválido.");
         }
@@ -289,8 +320,8 @@ public class UsuarioService {
             throw new RuntimeException("El token de recuperación ha expirado. Solicita uno nuevo.");
         }
 
-        // Hashear y actualizar contraseña
-        usuario.setPassword(passwordEncoder.encode(nuevaPassword.trim()));
+        // Hashear y actualizar contraseña (se conserva exactamente como se escribió).
+        usuario.setPassword(passwordEncoder.encode(nuevaPassword));
 
         // Limpiar el token para que no se reutlice
         usuario.setResetToken(null);
@@ -306,10 +337,13 @@ public class UsuarioService {
     @Transactional
     public void cambiarPassword(String identificador, String nuevaPassword) {
 
-    if (nuevaPassword == null || nuevaPassword.trim().length() < 8) {
+    if (nuevaPassword == null || nuevaPassword.length() < 8) {
         throw new RuntimeException(
                 "La nueva contraseña debe tener al menos 8 caracteres.");
     }
+
+    // Validar longitud máxima de la contraseña.
+    validarLongitudMaximaPassword(nuevaPassword);
 
     Usuario usuario = buscarPorIdentificador(identificador);
 
@@ -322,7 +356,7 @@ public class UsuarioService {
                 "La nueva contraseña no puede ser igual a la actual.");
     }
 
-    usuario.setPassword(passwordEncoder.encode(nuevaPassword.trim()));
+    usuario.setPassword(passwordEncoder.encode(nuevaPassword));
     usuario.setResetToken(null);
     usuario.setResetTokenExpiration(null);
 

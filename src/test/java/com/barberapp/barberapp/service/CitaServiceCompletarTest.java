@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -23,6 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.barberapp.barberapp.model.Barbero;
 import com.barberapp.barberapp.model.Cita;
+import com.barberapp.barberapp.model.CitaServicio;
+import com.barberapp.barberapp.model.Servicio;
 import com.barberapp.barberapp.model.Usuario;
 import com.barberapp.barberapp.repository.BarberoRepository;
 import com.barberapp.barberapp.repository.CitaRepository;
@@ -67,23 +70,25 @@ class CitaServiceCompletarTest {
     }
 
     @Test
-    void rechazaUnaCitaConfirmadaConHorarioFuturo() {
-        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).plusMinutes(5));
+    void rechazaUnaCitaConfirmadaCuyaDuracionAunNoTermina() {
+        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).minusMinutes(1));
         prepararBarberoAsignado(20, ID_BARBERO);
+        prepararDuracionCita(30);
         when(citaRepository.findById(ID_CITA)).thenReturn(Optional.of(cita));
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
                 () -> citaService.completarCita(ID_CITA));
 
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
-        assertEquals("No se puede completar una cita antes de su fecha y hora programadas.", error.getReason());
+        assertEquals("No se puede completar la cita hasta que haya transcurrido la duración programada del servicio.", error.getReason());
         verify(citaRepository, never()).save(cita);
     }
 
     @Test
-    void completaUnaCitaConfirmadaCuyaHoraYaLlego() {
-        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).minusMinutes(1));
+    void completaUnaCitaConfirmadaCuyaDuracionYaTermino() {
+        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).minusMinutes(31));
         prepararBarberoAsignado(20, ID_BARBERO);
+        prepararDuracionCita(30);
         when(citaRepository.findById(ID_CITA)).thenReturn(Optional.of(cita));
 
         assertEquals(true, citaService.completarCita(ID_CITA));
@@ -119,7 +124,7 @@ class CitaServiceCompletarTest {
 
     @Test
     void rechazaAUnClienteAunqueLaCitaPodriaCompletarse() {
-        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).minusMinutes(1));
+        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).minusMinutes(31));
         autenticar(usuario(4, "cliente"));
         when(citaRepository.findById(ID_CITA)).thenReturn(Optional.of(cita));
 
@@ -132,7 +137,7 @@ class CitaServiceCompletarTest {
 
     @Test
     void rechazaAlBarberoNoAsignado() {
-        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).minusMinutes(1));
+        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).minusMinutes(31));
         prepararBarberoAsignado(21, 8);
         when(citaRepository.findById(ID_CITA)).thenReturn(Optional.of(cita));
 
@@ -140,6 +145,24 @@ class CitaServiceCompletarTest {
                 () -> citaService.completarCita(ID_CITA));
 
         assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
+        verify(citaRepository, never()).save(cita);
+    }
+
+    @Test
+    void elegibilidadYFinalizacionUsanLaMismaReglaDeDuracion() {
+        Cita cita = cita("confirmada", LocalDateTime.now(ZONA_BOGOTA).minusMinutes(1));
+        prepararBarberoAsignado(20, ID_BARBERO);
+        prepararDuracionCita(30);
+        when(citaRepository.findById(ID_CITA)).thenReturn(Optional.of(cita));
+
+        assertEquals(false, citaService.obtenerElegibilidadCompletar(ID_CITA).orElseThrow().isPuedeCompletar());
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> citaService.completarCita(ID_CITA));
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+        assertEquals("No se puede completar la cita hasta que haya transcurrido la duración programada del servicio.",
+                error.getReason());
         verify(citaRepository, never()).save(cita);
     }
 
@@ -160,6 +183,17 @@ class CitaServiceCompletarTest {
         barbero.setId(idBarbero);
         autenticar(usuario);
         when(barberoRepository.findByUsuarioId(idUsuario)).thenReturn(Optional.of(barbero));
+    }
+
+    private void prepararDuracionCita(int minutos) {
+        CitaServicio relacion = new CitaServicio();
+        relacion.setIdCita(ID_CITA);
+        relacion.setIdServicio(11);
+        Servicio servicio = new Servicio();
+        servicio.setId(11);
+        servicio.setDuracion(minutos);
+        when(citaServicioRepository.findByIdCita(ID_CITA)).thenReturn(List.of(relacion));
+        when(servicioRepository.findById(11)).thenReturn(Optional.of(servicio));
     }
 
     private void autenticar(Usuario usuario) {
