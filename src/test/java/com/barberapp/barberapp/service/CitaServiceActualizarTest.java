@@ -58,8 +58,9 @@ class CitaServiceActualizarTest {
 
     @Test
     void actualizaLaMismaCitaSinCrearRelacionesDeServicio() {
-        Cita existente = cita(LocalDate.now().plusDays(2), LocalTime.of(17, 30));
-        Cita cambios = cita(LocalDate.now().plusDays(3), LocalTime.of(10, 0));
+        LocalDate fecha = LocalDate.now().plusDays(2);
+        Cita existente = cita(fecha, LocalTime.of(8, 0));
+        Cita cambios = cita(fecha, LocalTime.of(9, 0));
         prepararUsuarioAutenticado();
         prepararDuracionCita();
         when(citaRepository.findById(ID_CITA)).thenReturn(Optional.of(existente));

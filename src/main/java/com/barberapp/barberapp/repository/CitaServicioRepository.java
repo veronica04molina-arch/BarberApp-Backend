@@ -1,5 +1,6 @@
 package com.barberapp.barberapp.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,6 +14,8 @@ import com.barberapp.barberapp.model.CitaServicio;
 public interface CitaServicioRepository extends JpaRepository<CitaServicio, Integer> {
 
     List<CitaServicio> findByIdCita(Integer idCita);
+
+    List<CitaServicio> findByIdCitaIn(Collection<Integer> idCitas);
 
     List<CitaServicio> findByIdServicio(Integer idServicio);
 

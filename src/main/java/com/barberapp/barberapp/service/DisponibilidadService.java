@@ -4,8 +4,13 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -232,9 +237,13 @@ public class DisponibilidadService {
         // Validaciones básicas
         if (idBarbero == null
                 || fecha == null
-                || duracion <= 0
-                || !barberoRepository.existsById(idBarbero)) {
+                || duracion <= 0) {
 
+            return horariosDisponibles;
+        }
+
+        DisponibilidadContexto contexto = cargarContexto(idBarbero, fecha, idCitaIgnorar);
+        if (contexto == null) {
             return horariosDisponibles;
         }
 
@@ -244,12 +253,7 @@ public class DisponibilidadService {
         // Revisar horarios cada 30 minutos
         while (hora.isBefore(LocalTime.of(23, 30))) {
 
-            if (estaDisponible(
-                    idBarbero,
-                    fecha,
-                    hora,
-                    duracion,
-                    idCitaIgnorar)) {
+            if (estaDisponible(contexto, hora, duracion)) {
 
                 horariosDisponibles.add(hora);
             }
@@ -331,5 +335,130 @@ public class DisponibilidadService {
 
             case SUNDAY -> "DOMINGO";
         };
+    }
+
+    private DisponibilidadContexto cargarContexto(
+            Integer idBarbero,
+            LocalDate fecha,
+            Integer idCitaIgnorar) {
+
+        Barbero barbero = barberoRepository.findById(idBarbero).orElse(null);
+        if (barbero == null || !"activo".equalsIgnoreCase(barbero.getEstado())) {
+            return null;
+        }
+
+        List<HorarioSemanal> horarios = horarioSemanalRepository
+                .findByIdBarberoAndDiaSemanaAndEstado(
+                        idBarbero,
+                        nombreDia(fecha.getDayOfWeek()),
+                        "disponible");
+        List<ExcepcionHorario> excepciones = excepcionHorarioRepository
+                .findByIdBarberoAndFecha(idBarbero, fecha);
+        List<Cita> citas = citaRepository.findByIdBarberoAndFecha(idBarbero, fecha).stream()
+                .filter(cita -> !"cancelada".equalsIgnoreCase(cita.getEstado()))
+                .filter(cita -> idCitaIgnorar == null || !idCitaIgnorar.equals(cita.getId()))
+                .toList();
+
+        return new DisponibilidadContexto(
+                fecha, horarios, excepciones, citas, duracionesCitas(citas));
+    }
+
+    /** Carga relaciones y servicios en lotes, no una vez por cita ni por franja. */
+    private Map<Integer, Integer> duracionesCitas(Collection<Cita> citas) {
+        Set<Integer> idCitas = new HashSet<>();
+        for (Cita cita : citas) {
+            if (cita.getId() != null) {
+                idCitas.add(cita.getId());
+            }
+        }
+        if (idCitas.isEmpty()) {
+            return Map.of();
+        }
+
+        List<CitaServicio> relaciones = citaServicioRepository.findByIdCitaIn(idCitas);
+        Set<Integer> idServicios = new HashSet<>();
+        for (CitaServicio relacion : relaciones) {
+            if (relacion.getIdServicio() != null) {
+                idServicios.add(relacion.getIdServicio());
+            }
+        }
+
+        Map<Integer, Integer> duracionPorServicio = new HashMap<>();
+        for (Servicio servicio : servicioRepository.findAllById(idServicios)) {
+            if (servicio.getDuracion() != null) {
+                duracionPorServicio.put(servicio.getId(), servicio.getDuracion());
+            }
+        }
+
+        Map<Integer, Integer> duracionPorCita = new HashMap<>();
+        for (CitaServicio relacion : relaciones) {
+            Integer duracion = duracionPorServicio.get(relacion.getIdServicio());
+            if (duracion != null && relacion.getIdCita() != null) {
+                duracionPorCita.merge(relacion.getIdCita(), duracion, Integer::sum);
+            }
+        }
+        return duracionPorCita;
+    }
+
+    private boolean estaDisponible(
+            DisponibilidadContexto contexto,
+            LocalTime hora,
+            int duracion) {
+
+        if (hora == null
+                || duracion <= 0
+                || !contexto.fecha().atTime(hora).isAfter(java.time.LocalDateTime.now())) {
+            return false;
+        }
+
+        int minutosDesdeMedianoche = hora.getHour() * 60 + hora.getMinute();
+        if (duracion > 24 * 60 - minutosDesdeMedianoche) {
+            return false;
+        }
+        LocalTime fin = hora.plusMinutes(duracion);
+
+        List<ExcepcionHorario> horariosEspeciales = contexto.excepciones().stream()
+                .filter(e -> "HORARIO_ESPECIAL".equalsIgnoreCase(e.getTipo()))
+                .toList();
+        boolean dentroDelHorarioBase = horariosEspeciales.isEmpty()
+                ? contexto.horarios().stream().anyMatch(h -> !hora.isBefore(h.getHoraInicio())
+                        && !fin.isAfter(h.getHoraFin()))
+                : horariosEspeciales.stream().anyMatch(e -> intervaloContiene(
+                        e.getHoraInicio(), e.getHoraFin(), hora, fin));
+        if (!dentroDelHorarioBase) {
+            return false;
+        }
+
+        for (ExcepcionHorario excepcion : contexto.excepciones()) {
+            if (!"NO_DISPONIBLE".equalsIgnoreCase(excepcion.getTipo())) {
+                continue;
+            }
+            if (excepcion.getHoraInicio() == null && excepcion.getHoraFin() == null) {
+                return false;
+            }
+            if (seSuperpone(hora, fin, excepcion.getHoraInicio(), excepcion.getHoraFin())) {
+                return false;
+            }
+        }
+
+        for (Cita existente : contexto.citas()) {
+            int duracionExistente = contexto.duracionPorCita().getOrDefault(existente.getId(), 0);
+            if (duracionExistente > 0 && seSuperpone(
+                    hora,
+                    fin,
+                    existente.getHora(),
+                    existente.getHora().plusMinutes(duracionExistente))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private record DisponibilidadContexto(
+            LocalDate fecha,
+            List<HorarioSemanal> horarios,
+            List<ExcepcionHorario> excepciones,
+            List<Cita> citas,
+            Map<Integer, Integer> duracionPorCita) {
     }
 }

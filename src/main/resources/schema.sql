@@ -26,3 +26,10 @@ WHERE s.id = cs.idservicio
 -- Verificar que todos los registros tengan un precio aplicado.
 ALTER TABLE cita_servicio
 ALTER COLUMN precio_aplicado SET NOT NULL;
+
+-- Estas son las dos rutas de lectura del calendario diario y sus servicios.
+CREATE INDEX IF NOT EXISTS idx_cita_barbero_fecha
+ON cita (idbarbero, fecha);
+
+CREATE INDEX IF NOT EXISTS idx_cita_servicio_cita
+ON cita_servicio (idcita);
