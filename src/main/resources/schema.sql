@@ -12,14 +12,14 @@ ADD COLUMN IF NOT EXISTS descripcion_aplicada TEXT;
 -- Completar el precio únicamente si todavía no tiene un valor.
 UPDATE cita_servicio cs
 SET precio_aplicado = s.precio
-FROM servicio s
+FROM configuracion.servicio s
 WHERE s.id = cs.idservicio
   AND cs.precio_aplicado IS NULL;
 
 -- Completar la descripción únicamente si todavía no tiene un valor.
 UPDATE cita_servicio cs
 SET descripcion_aplicada = s.descripcion
-FROM servicio s
+FROM configuracion.servicio s
 WHERE s.id = cs.idservicio
   AND cs.descripcion_aplicada IS NULL;
 

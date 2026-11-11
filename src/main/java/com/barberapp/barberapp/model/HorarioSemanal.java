@@ -10,7 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "horario_semanal")
+@Table(name = "horario_semanal", schema = "configuracion")
 public class HorarioSemanal {
 
     @Id

@@ -11,7 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "excepcion_horario")
+@Table(name = "excepcion_horario", schema = "configuracion")
 public class ExcepcionHorario {
 
     @Id

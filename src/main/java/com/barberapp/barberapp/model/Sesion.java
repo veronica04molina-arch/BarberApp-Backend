@@ -12,7 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "sesion")
+@Table(name = "sesion", schema = "seguridad")
 public class Sesion {
 
     @Id
